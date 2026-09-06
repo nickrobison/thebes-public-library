@@ -1,0 +1,11 @@
+PASS — W4 REST + Frontend + Observability
+- `GreetingResource.java`: `/hello` preserved; `/health` + `/ready` added
+- `frontend/src/App.tsx`: renders health response
+- `frontend/package.json`: vite + react + react-dom
+- `frontend/src/main.tsx`: renders App
+- `application.properties`: CORS, structured JSON logging, OTel enabled
+- `Dockerfile.jvm`: non-root USER 185; bind 0.0.0.0:8080
+- `.github/workflows/ci.yml`: `mvnw verify`, health curl, ES health, package
+- `.omo/evidence/task-security-v1.md`: v1 operating assumptions quoted
+- `mvnw verify -DskipTests`: BUILD SUCCESS
+- No auth framework; no deferred features inserted

@@ -1,0 +1,101 @@
+{
+  "schema_version": 2,
+  "active_work_id": "phase0-70a221b8",
+  "works": {
+    "phase0-70a221b8": {
+      "work_id": "phase0-70a221b8",
+      "active_plan": "/home/nick/Development/git/thebes-public-library/.omo/plans/phase0.md",
+      "plan_name": "phase0",
+      "status": "completed",
+      "started_at": "2026-09-06T21:56:41.461Z",
+      "updated_at": "2026-09-06T22:53:16.967Z",
+      "session_ids": [
+        "opencode:ses_f876ecb7cffeY1MR9Qh7Oe0WUJ",
+        "opencode:ses_f87344d38ffeE7Ei9f1j8Dzn9q",
+        "opencode:ses_f8731598dffeLfqS7Lfz5JNAzD"
+      ],
+      "session_origins": {
+        "opencode:ses_f876ecb7cffeY1MR9Qh7Oe0WUJ": "direct",
+        "opencode:ses_f87344d38ffeE7Ei9f1j8Dzn9q": "direct",
+        "opencode:ses_f8731598dffeLfqS7Lfz5JNAzD": "direct"
+      },
+      "agent": "atlas",
+      "task_sessions": {
+        "final-wave:f1": {
+          "task_key": "final-wave:f1",
+          "task_label": "F1",
+          "task_title": "Plan compliance audit: `.omo/plans/phase0.md` header order (TL;DR → Scope → Verification → Execution → Dependency matrix → Todos [W1-W5] → Final verification → Commit → Success) preserved; file-level spec intact; no placeholder text remaining (all `What to do` sections filled with actual file names).",
+          "session_id": "opencode:ses_f87335482fferEf3ePVkEzAqet",
+          "agent": "Sisyphus-Junior",
+          "category": "unspecified-high",
+          "updated_at": "2026-09-06T22:20:44.226Z",
+          "started_at": "2026-09-06T22:17:59.725Z",
+          "status": "completed",
+          "ended_at": "2026-09-06T22:20:44.226Z",
+          "elapsed_ms": 164501
+        },
+        "final-wave:f2": {
+          "task_key": "final-wave:f2",
+          "task_label": "F2",
+          "task_title": "Code quality review: no business-logic assumption without evidence (each W1-W5 References section has `src/main/java/...` line-range or `.omo/evidence/` file reference); no placeholder `FIXME` or `TODO` in produced source (only deferred items in `.omo/plans/phase0.md` Must NOT have); v1 security confirmed (no auth framework, basic hardening doc only).",
+          "session_id": "opencode:ses_f87308d16ffeMa7eW4gb039buV",
+          "agent": "Sisyphus-Junior",
+          "category": "unspecified-high",
+          "updated_at": "2026-09-06T22:52:39.866Z",
+          "started_at": "2026-09-06T22:46:31.753Z",
+          "status": "completed",
+          "ended_at": "2026-09-06T22:52:39.862Z",
+          "elapsed_ms": 368109
+        }
+      },
+      "ended_at": "2026-09-06T22:53:16.967Z",
+      "elapsed_ms": 3395506
+    }
+  },
+  "active_plan": "/home/nick/Development/git/thebes-public-library/.omo/plans/phase0.md",
+  "started_at": "2026-09-06T21:56:41.461Z",
+  "status": "completed",
+  "updated_at": "2026-09-06T22:53:16.967Z",
+  "session_ids": [
+    "opencode:ses_f876ecb7cffeY1MR9Qh7Oe0WUJ",
+    "opencode:ses_f87344d38ffeE7Ei9f1j8Dzn9q",
+    "opencode:ses_f8731598dffeLfqS7Lfz5JNAzD"
+  ],
+  "session_origins": {
+    "opencode:ses_f876ecb7cffeY1MR9Qh7Oe0WUJ": "direct",
+    "opencode:ses_f87344d38ffeE7Ei9f1j8Dzn9q": "direct",
+    "opencode:ses_f8731598dffeLfqS7Lfz5JNAzD": "direct"
+  },
+  "plan_name": "phase0",
+  "task_sessions": {
+    "final-wave:f1": {
+      "task_key": "final-wave:f1",
+      "task_label": "F1",
+      "task_title": "Plan compliance audit: `.omo/plans/phase0.md` header order (TL;DR → Scope → Verification → Execution → Dependency matrix → Todos [W1-W5] → Final verification → Commit → Success) preserved; file-level spec intact; no placeholder text remaining (all `What to do` sections filled with actual file names).",
+      "session_id": "opencode:ses_f87335482fferEf3ePVkEzAqet",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "updated_at": "2026-09-06T22:20:44.226Z",
+      "started_at": "2026-09-06T22:17:59.725Z",
+      "status": "completed",
+      "ended_at": "2026-09-06T22:20:44.226Z",
+      "elapsed_ms": 164501
+    },
+    "final-wave:f2": {
+      "task_key": "final-wave:f2",
+      "task_label": "F2",
+      "task_title": "Code quality review: no business-logic assumption without evidence (each W1-W5 References section has `src/main/java/...` line-range or `.omo/evidence/` file reference); no placeholder `FIXME` or `TODO` in produced source (only deferred items in `.omo/plans/phase0.md` Must NOT have); v1 security confirmed (no auth framework, basic hardening doc only).",
+      "session_id": "opencode:ses_f87308d16ffeMa7eW4gb039buV",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "updated_at": "2026-09-06T22:52:39.866Z",
+      "started_at": "2026-09-06T22:46:31.753Z",
+      "status": "completed",
+      "ended_at": "2026-09-06T22:52:39.862Z",
+      "elapsed_ms": 368109
+    }
+  },
+  "agent": "atlas",
+  "ended_at": "2026-09-06T22:53:16.967Z",
+  "elapsed_ms": 3395506
+}

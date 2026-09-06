@@ -1,0 +1,11 @@
+PASS — W1 Backend + PostgreSQL
+- `pom.xml`: added `quarkus-jdbc-postgresql`, `quarkus-flyway`, `quarkus-rest-jackson`, `quarkus-hibernate-orm-panache`
+- `application.properties`: DB config set (postgresql, thebes/thebes, localhost:5432/thebes)
+- `db/migration/V1__init.sql`: 2 tables (documents, artifacts) with UUID PK, FK
+- `Document.java`: @Entity, UUID id, title, createdAt, updatedAt
+- `Artifact.java`: @Entity, UUID id, UUID documentId, storagePath, contentChecksum, createdAt
+- `GreetingResource.java`: `/hello` preserved; `/health` added (JSON: postgresql, elasticsearch, status)
+- `mvnw verify -DskipTests`: BUILD SUCCESS (exit 0)
+- `grep -v '^#' pom.xml | grep -i 'security\|jwt\|auth\|oidc'`: empty (v1 verified)
+- No auth framework inserted; no deferred features added
+- Health endpoint requires running PG (not available in this environment) — architecture verified
