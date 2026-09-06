@@ -1,0 +1,15 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 14
+    },
+    "auditLog": "/home/nick/Development/git/thebes-public-library/logs/.2289e741266c71df47d76a1e36c955933738e4a4-audit.json",
+    "files": [
+        {
+            "date": 1788728996164,
+            "name": "/home/nick/Development/git/thebes-public-library/logs/error-2026-09-06.log",
+            "hash": "d0fe6e45fa54748ad8f2ef4df660721ffae6e6c810e321cad8573c55fc7a3799"
+        }
+    ],
+    "hashType": "sha256"
+}
