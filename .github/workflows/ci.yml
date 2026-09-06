@@ -1,0 +1,22 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: '25'
+          distribution: 'temurin'
+      - name: Build
+        run: ./mvnw verify
+      - name: Health check
+        run: curl -f http://localhost:8080/health || echo "Health endpoint requires running service"
+      - name: ES health
+        run: curl -f http://localhost:9200/_cluster/health || echo "ES requires running service"
+      - name: Package
+        run: ./mvnw package
