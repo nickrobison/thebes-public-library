@@ -20,3 +20,9 @@ Verification (all via IntelliJ MCP — per user instruction, no mvn CLI):
 - `.omo/evidence/task-14point-gate.md` final line = `Phase 1 complete`
 
 No FAIL conditions met. No auth framework. Deferred list unchanged (F4 false positives ruled out with reasons).
+
+ADDENDUM 2026-09-07 — Postgres Dev Services migration (user: "no H2/SQLite, DB tests on PG via dev services"):
+- Removed `quarkus-jdbc-h2`; removed base `jdbc.url` → Dev Services provides PostgreSQL for dev AND test (standard Quarkus idiom; localhost-PG dev loop replaced — flagged to user).
+- `%test`: PG + `generation=none` (Flyway owns schema; V1–V5 validated + applied on PG 18.6).
+- Re-verified on REAL PG: `ArtifactPublicationServiceIT` 3/3, `BulkImportServiceIT` 2/2, `HealthEndpointIT` 2/2 — all exit 0 via IntelliJ MCP.
+- Podman socket enabled (`systemctl --user podman.socket`); `~/.testcontainers.properties` points at it; container reuse ON (fast reruns; delta assertions where needed).

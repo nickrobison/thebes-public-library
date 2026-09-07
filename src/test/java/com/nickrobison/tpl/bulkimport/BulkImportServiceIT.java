@@ -48,6 +48,9 @@ public class BulkImportServiceIT {
             }
 
             BulkImportService service = new BulkImportService();
+            long singlesBefore = WorkflowJob.count("type = ?1", WorkflowType.IMPORT_SINGLE);
+            long pendingBefore = WorkflowJob.count("type = ?1 and status = ?2", WorkflowType.IMPORT_SINGLE, WorkflowStatus.PENDING);
+            long opsBefore = ImportOperation.count();
             BulkImportResult result = service.importDirectory(dir, true);
 
             assertEquals(3, result.fileCount);
@@ -57,21 +60,23 @@ public class BulkImportServiceIT {
             assertNotNull(parent);
             assertEquals(WorkflowType.IMPORT_BULK, parent.type);
 
-            assertEquals(3, WorkflowJob.count("type = ?1", WorkflowType.IMPORT_SINGLE));
+            assertEquals(3, WorkflowJob.count("type = ?1", WorkflowType.IMPORT_SINGLE) - singlesBefore);
 
             ImportOperation op = ImportOperation.findById(UUID.fromString(result.parentId));
             assertNotNull(op);
             assertEquals("LOCAL_DIRECTORY", op.mechanism);
             assertEquals(dir.toString(), op.sourcePath);
+            assertEquals(opsBefore + 1, ImportOperation.count());
 
             try (Stream<Path> s = Files.walk(dir)) {
                 assertEquals(before, s.map(Path::toString).sorted().toList());
             }
 
-            WorkflowJob oneChild = WorkflowJob.find("type = ?1", WorkflowType.IMPORT_SINGLE).firstResult();
+            WorkflowJob oneChild = WorkflowJob.find("type = ?1 and status = ?2", WorkflowType.IMPORT_SINGLE, WorkflowStatus.PENDING).firstResult();
+            assertNotNull(oneChild);
             oneChild.status = WorkflowStatus.FAILED;
             oneChild.persist();
-            assertEquals(2, WorkflowJob.count("type = ?1 and status = ?2", WorkflowType.IMPORT_SINGLE, WorkflowStatus.PENDING));
+            assertEquals(pendingBefore + 2, WorkflowJob.count("type = ?1 and status = ?2", WorkflowType.IMPORT_SINGLE, WorkflowStatus.PENDING));
         } finally {
             try (Stream<Path> s = Files.walk(dir)) {
                 s.sorted(Comparator.reverseOrder()).forEach(p -> {

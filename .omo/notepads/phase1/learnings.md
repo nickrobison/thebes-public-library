@@ -13,3 +13,9 @@
 - W5 done: ImportMetrics (JDK-atomics, NO micrometer — IntelliJ Maven model would not reimport the dep, build-breaking; documented in W5 evidence); UploadResource counter + ImportWorkflow timers + completed/failed; /health imports{pending,failed} + metrics snapshot; CI IT step (-DskipITs=false, H2); HealthEndpointIT 2/2 PASS.
 - CAUGHT BY QA: GreetingResource methods were nested under class-level /hello → /health + /ready 404'd. Fixed to root @Path("/") with explicit method paths; /hello preserved (GreetingResourceTest green). Lesson: always live-hit new endpoints via IT, never assume path composition.
 - F1-F4 PASS; gate file ends `Phase 1 complete`.
+- PG DEV SERVICES migration (user directive, 2026-09-07): removed quarkus-jdbc-h2; removed base jdbc.url → Dev Services PG for dev+test; %test generation=none + Flyway owns schema. Podman socket via systemd user + ~/.testcontainers.properties; container reuse ON.
+- DISCOVERY: quarkus.flyway.migrate-at-start defaults FALSE (Context7 recorder source confirms opt-in) — Flyway had NEVER run in this project. Set =true; V1–V5 validate+apply cleanly on PG 18.6.
+- DISCOVERY: Hibernate used pass-through column naming vs snake_case migrations → set quarkus.hibernate-orm.physical-naming-strategy=CamelCaseToUnderscoresNamingStrategy (proven live via garbage-class diagnostic). All V1–V5 columns align.
+- WorkflowJob.type/status MUST be @Enumerated(STRING) (else ORDINAL vs VARCHAR mismatch on PG).
+- Tests must create real parent rows (artifacts_document_id_fkey enforced on PG — H2/drop-and-create never caught it).
+- Reused testcontainer DB persists rows across runs → use before/after DELTA assertions, never absolute counts.

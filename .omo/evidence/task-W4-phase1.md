@@ -15,3 +15,5 @@ Verification (all via IntelliJ MCP):
 - Deferred: narrowed guardrails → empty (PASS)
 
 Deviation recorded (Momus-sanctioned): package is `bulkimport`, not `import` (`import` is a Java reserved word — cannot be a package name). Test lives at `.../bulkimport/BulkImportServiceIT.java`, not `.../import/...` as plan text states. Behavior identical to spec.
+
+ADDENDUM 2026-09-07 — Postgres Dev Services migration: `BulkImportServiceIT` re-verified on REAL PostgreSQL 18.6 (Dev Services via podman): exit 0, 2/2 PASS, 0 failures. Assertions converted to before/after DELTAS (singles/pending/ops counts) because the reused testcontainer DB persists rows across runs — absolute counts would be flaky. `ImportOperation.findById(UUID)` finder added (PanacheEntityBase has none).
