@@ -142,7 +142,7 @@ W5 — Observability + Final Verification (depends on W1-W4): metrics + CI + F1-
   QA scenarios: happy = mixed valid/invalid → parent COMPLETED, children SUCCESS/FAILED; failure = corrupt PDF → child FAILED, others continue; `.omo/evidence/task-W4-phase1-FAIL.md` records
   Commit: `feat(bulk-import): local-directory read-only import + parent/child workflow`
 
-- [ ] T-W5. W5 — Observability + Final Verification
+- [x] T-W5. W5 — Observability + Final Verification
   What to do / Must NOT do: `application.properties` (import metrics: duration, validation time, storage time, failure rates; Phase 0 JSON logging + OTel retained; NO new auth); extend `GreetingResource.java` /health payload with `imports: {pending, failed}` counts (readiness signal for import subsystem, criterion #21); OTel span attributes on import stages (upload→validate→store→verify); `.github/workflows/ci.yml` (add Phase 1 IT tests); `.omo/evidence/security-v1.md` (Phase 1 v1 assumptions); `.omo/evidence/task-14point-gate.md` (Phase 1 mappings incl. criterion #22 both backends); F1-F4 evidence. Must NOT add auth framework.
   Parallelization: Wave W5 | Blocked by: W1-W4 | Blocks: —
   References: Confluence Phase 1 acceptance criteria #1-22; Phase 0 `.omo/evidence/task-security-v1.md`; Phase 1 `.omo/evidence/task-*phase1.md`
@@ -152,10 +152,10 @@ W5 — Observability + Final Verification (depends on W1-W4): metrics + CI + F1-
 
 ## Final verification wave
 > Runs in parallel after ALL todos. ALL must APPROVE. Surface results and wait for the user's explicit okay before declaring complete.
-- [ ] F1. Plan compliance audit
-- [ ] F2. Code quality review
-- [ ] F3. Real manual QA
-- [ ] F4. Scope fidelity
+- [x] F1. Plan compliance audit
+- [x] F2. Code quality review
+- [x] F3. Real manual QA
+- [x] F4. Scope fidelity
 
 ## Commit strategy
 No commits for planning phase (plan-only artifacts `.omo/`). Execution waves commit: W1 `feat(validation-checksum): ...`; W2 `feat(upload-temp): ...`; W3 `feat(artifact-publication): ...`; W4 `feat(bulk-import): ...`; W5 `feat(phase1-gate): ...` (only if F1-F4 + gate verified). Merge: feature branch per wave; squash-merge on approval; CI (`.github/workflows/ci.yml`) must pass (`mvnw verify` + health checks) before merge. No `feat(phase1): complete` until `.omo/evidence/task-14point-gate.md` records complete + F1-F4 PASS + deferred list unchanged.

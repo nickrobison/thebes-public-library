@@ -14,6 +14,8 @@ jobs:
           distribution: 'temurin'
       - name: Build
         run: ./mvnw verify
+      - name: Integration tests (Phase 1, H2 test profile)
+        run: ./mvnw verify -DskipITs=false
       - name: Health check
         run: curl -f http://localhost:8080/health || echo "Health endpoint requires running service"
       - name: ES health

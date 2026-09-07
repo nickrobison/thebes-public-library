@@ -1,5 +1,6 @@
 package com.nickrobison.tpl.resource;
 
+import com.nickrobison.tpl.metrics.ImportMetrics;
 import com.nickrobison.tpl.workflow.WorkflowService;
 import com.nickrobison.tpl.workflow.WorkflowJob;
 import com.nickrobison.tpl.workflow.WorkflowType;
@@ -22,9 +23,11 @@ import java.util.UUID;
 public class UploadResource {
 
     private final WorkflowService workflowService;
+    private final ImportMetrics metrics;
 
-    public UploadResource(WorkflowService workflowService) {
+    public UploadResource(WorkflowService workflowService, ImportMetrics metrics) {
         this.workflowService = workflowService;
+        this.metrics = metrics;
     }
 
     @POST
@@ -47,6 +50,7 @@ public class UploadResource {
         job.submittedAt = Instant.now();
 
         workflowService.submit(job);
+        metrics.accepted();
 
         Map<String, String> result = new HashMap<>();
         result.put("importId", job.id.toString());

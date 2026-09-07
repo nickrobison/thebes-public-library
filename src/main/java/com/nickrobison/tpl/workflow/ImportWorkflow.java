@@ -7,13 +7,16 @@ import com.nickrobison.tpl.storage.Storage;
 import com.nickrobison.tpl.checksum.Blake3Checksum;
 import com.nickrobison.tpl.validation.PdfValidator;
 import com.nickrobison.tpl.validation.PdfBoxValidator;
+import com.nickrobison.tpl.metrics.ImportMetrics;
 import com.nickrobison.tpl.temp.TempInput;
 import com.nickrobison.tpl.service.ArtifactPublicationService;
 
+import jakarta.enterprise.context.ApplicationScoped;
 import java.io.InputStream;
 import java.time.Instant;
 import java.util.UUID;
 
+@ApplicationScoped
 public class ImportWorkflow {
 
     private static final int MAX_RETRIES = 3;
@@ -21,11 +24,13 @@ public class ImportWorkflow {
     private final WorkflowService workflowService;
     private final Storage storage;
     private final ArtifactPublicationService publicationService;
+    private final ImportMetrics metrics;
 
-    public ImportWorkflow(WorkflowService workflowService, Storage storage, ArtifactPublicationService publicationService) {
+    public ImportWorkflow(WorkflowService workflowService, Storage storage, ArtifactPublicationService publicationService, ImportMetrics metrics) {
         this.workflowService = workflowService;
         this.storage = storage;
         this.publicationService = publicationService;
+        this.metrics = metrics;
     }
 
     public void process(UUID jobId) throws Exception {
@@ -39,6 +44,7 @@ public class ImportWorkflow {
             // Stage 1: VALIDATION (with retry)
             if (stage.equals("VALIDATION") || stage.equals("RESTART")) {
                 retryStage(job, "VALIDATION", () -> {
+                    long sample = metrics.startValidation();
                     try {
                         String payload = job.payload;
                         String tempRef = extractTempRef(payload);
@@ -53,6 +59,8 @@ public class ImportWorkflow {
                         }
                     } catch (Exception ex) {
                         throw new RuntimeException(ex);
+                    } finally {
+                        metrics.stopValidation(sample);
                     }
                 });
                 job.currentStage = "STORAGE";
@@ -62,6 +70,7 @@ public class ImportWorkflow {
             // Stage 2: STORAGE (with retry) — uses ArtifactPublicationService (Storage interface ONLY)
             if (stage.equals("STORAGE") || stage.equals("RESTART")) {
                 retryStage(job, "STORAGE", () -> {
+                    long sample = metrics.startStorage();
                     try {
                         String payload = job.payload;
                         String tempRef = extractTempRef(payload);
@@ -99,6 +108,8 @@ public class ImportWorkflow {
                         publicationService.publish(artifact, data, blake3Hash);
                     } catch (Exception ex) {
                         throw new RuntimeException(ex);
+                    } finally {
+                        metrics.stopStorage(sample);
                     }
                 });
                 job.currentStage = "VERIFICATION";
@@ -124,12 +135,14 @@ public class ImportWorkflow {
             job.status = WorkflowStatus.COMPLETED;
             job.completedAt = Instant.now();
             job.persist();
+            metrics.completed();
 
         } catch (Exception e) {
             job.status = WorkflowStatus.FAILED;
             job.failureReason = e.getMessage();
             job.completedAt = Instant.now();
             job.persist();
+            metrics.failed();
         }
     }
 

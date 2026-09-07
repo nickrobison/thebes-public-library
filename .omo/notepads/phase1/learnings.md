@@ -10,3 +10,6 @@
 - Entity @Table names must match migration tables (Artifact vs artifacts broke ITs); fixed with @Table on Document/Artifact.
 - pom quarkus.platform.group-id was corrupted to self-referential value in working tree (HEAD correct); fixed to io.quarkus.platform. IntelliJ build green ≠ test-boot green (runner re-resolves BOM).
 - Per user: no BouncyCastle; Commons Codec has no BLAKE3 → SHA-256 stand-in behind BLAKE3-compatible streaming interface; swap-in later.
+- W5 done: ImportMetrics (JDK-atomics, NO micrometer — IntelliJ Maven model would not reimport the dep, build-breaking; documented in W5 evidence); UploadResource counter + ImportWorkflow timers + completed/failed; /health imports{pending,failed} + metrics snapshot; CI IT step (-DskipITs=false, H2); HealthEndpointIT 2/2 PASS.
+- CAUGHT BY QA: GreetingResource methods were nested under class-level /hello → /health + /ready 404'd. Fixed to root @Path("/") with explicit method paths; /hello preserved (GreetingResourceTest green). Lesson: always live-hit new endpoints via IT, never assume path composition.
+- F1-F4 PASS; gate file ends `Phase 1 complete`.
