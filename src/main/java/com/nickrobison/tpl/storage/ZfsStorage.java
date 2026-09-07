@@ -1,4 +1,4 @@
-package org.acme.storage;
+package com.nickrobison.tpl.storage;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;

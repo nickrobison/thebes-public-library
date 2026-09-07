@@ -1,18 +1,24 @@
-package org.acme.workflow;
+package com.nickrobison.tpl.workflow;
 
+import jakarta.enterprise.context.ApplicationScoped;
 import java.util.UUID;
 
+@ApplicationScoped
 public class WorkflowService {
     public void submit(WorkflowJob job) {
-        // Persists job to PG
+        job.persist();
     }
 
     public WorkflowJob getStatus(UUID id) {
-        // Reads job status from PG
-        return new WorkflowJob();
+        return WorkflowJob.findById(id);
     }
 
     public void retry(UUID id) {
-        // Resets status to PENDING
+        WorkflowJob job = WorkflowJob.findById(id);
+        if (job != null) {
+            job.status = WorkflowStatus.PENDING;
+            job.completedAt = null;
+            job.persist();
+        }
     }
 }

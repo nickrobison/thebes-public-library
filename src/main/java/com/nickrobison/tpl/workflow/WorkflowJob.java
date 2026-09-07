@@ -1,26 +1,31 @@
-package org.acme.workflow;
+package com.nickrobison.tpl.workflow;
 
+import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 import java.time.Instant;
 import java.util.UUID;
 
-public class WorkflowJob {
-    private UUID id;
-    private String type;
-    private String status;
-    private String payload;
-    private Instant submittedAt;
-    private Instant completedAt;
+@Entity
+@Table(name = "workflow_jobs")
+public class WorkflowJob extends PanacheEntityBase {
+    @Id
+    public UUID id = UUID.randomUUID();
+    @Enumerated(EnumType.STRING)
+    public WorkflowType type;
+    @Enumerated(EnumType.STRING)
+    public WorkflowStatus status;
+    public String payload;
+    public String failureReason;
+    public String currentStage;
+    public int retryCount = 0;
+    public Instant submittedAt;
+    public Instant completedAt;
 
-    public UUID getId() { return id; }
-    public void setId(UUID id) { this.id = id; }
-    public String getType() { return type; }
-    public void setType(String type) { this.type = type; }
-    public String getStatus() { return status; }
-    public void setStatus(String status) { this.status = status; }
-    public String getPayload() { return payload; }
-    public void setPayload(String payload) { this.payload = payload; }
-    public Instant getSubmittedAt() { return submittedAt; }
-    public void setSubmittedAt(Instant submittedAt) { this.submittedAt = submittedAt; }
-    public Instant getCompletedAt() { return completedAt; }
-    public void setCompletedAt(Instant completedAt) { this.completedAt = completedAt; }
+    public static WorkflowJob findById(UUID id) {
+        return find("id", id).firstResult();
+    }
 }

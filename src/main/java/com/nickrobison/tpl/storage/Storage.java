@@ -1,4 +1,4 @@
-package org.acme.storage;
+package com.nickrobison.tpl.storage;
 
 import java.io.InputStream;
 import java.util.UUID;

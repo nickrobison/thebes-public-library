@@ -1,4 +1,4 @@
-package org.acme.workflow;
+package com.nickrobison.tpl.workflow;
 
 import io.quarkus.test.junit.QuarkusTest;
 import org.junit.jupiter.api.Test;
@@ -9,7 +9,7 @@ public class WorkflowServiceIT {
     public void testSubmitAndRead() {
         WorkflowService service = new WorkflowService();
         WorkflowJob job = new WorkflowJob();
-        job.setStatus("PENDING");
+        job.status = WorkflowStatus.PENDING;
         service.submit(job);
         // Restart-resilience: job state preserved in PG
     }

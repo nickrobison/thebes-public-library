@@ -1,0 +1,12 @@
+# phase1 learnings
+- Plan: phase1.md — 5 waves (W1-W5) + F1-F4
+- W1: PDFBox structural validation + BLAKE3 streaming checksum
+- No auth framework (v1). No deferred features inserted.
+- Evidence per wave: .omo/evidence/task-W<N>-phase1.md
+- Tests-after framework (Q3 confirmed)
+- User decisions: temp retention = keep until terminal; failed-items = minimal list + retry
+- W3 done: ArtifactState enum; ArtifactPublicationService (Storage-interface-only); ImportWorkflow retry/restart/recovery via WorkflowJob.currentStage; FilesystemStorage real impl; V4/V5 migrations; ArtifactPublicationServiceIT 3/3 PASS via IntelliJ.
+- Flyway does NOT migrate the H2 test DB (no log lines, empty DB) → tests use Hibernate drop-and-create; real-PG Flyway path unverified (W5/CI).
+- Entity @Table names must match migration tables (Artifact vs artifacts broke ITs); fixed with @Table on Document/Artifact.
+- pom quarkus.platform.group-id was corrupted to self-referential value in working tree (HEAD correct); fixed to io.quarkus.platform. IntelliJ build green ≠ test-boot green (runner re-resolves BOM).
+- Per user: no BouncyCastle; Commons Codec has no BLAKE3 → SHA-256 stand-in behind BLAKE3-compatible streaming interface; swap-in later.
