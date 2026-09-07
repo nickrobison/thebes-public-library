@@ -23,5 +23,6 @@ public class Artifact extends PanacheEntityBase {
     public String physicalMetadataJson;
     public String importProvenanceJson;
     public String failureReason;
+    public boolean isPreferred = false;
     public Instant createdAt;
 }

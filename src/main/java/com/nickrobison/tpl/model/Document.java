@@ -13,6 +13,15 @@ public class Document extends PanacheEntityBase {
     @Id
     public UUID id = UUID.randomUUID();
     public String title;
+    public String authors;
+    public Integer pubYear;
+    public String journal;
+    public String volume;
+    public String issue;
+    public String pages;
+    public String doi;
+    public int version = 1;
     public Instant createdAt;
     public Instant updatedAt;
+    public String processingStatus = "PENDING";
 }
