@@ -1,4 +1,4 @@
-package org.acme.search;
+package com.nickrobison.tpl.search;
 
 public class LibraryIndex {
     public void createIndex() {
