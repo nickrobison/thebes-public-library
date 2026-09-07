@@ -9,6 +9,7 @@ import com.nickrobison.tpl.workflow.WorkflowStatus;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import jakarta.transaction.Transactional;
 
 import java.util.*;
 
@@ -95,6 +96,7 @@ public class LibraryResource {
     @Path("/documents/{id}")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
+    @Transactional
     public Response updateDocument(@PathParam("id") UUID docId,
                                   @HeaderParam("If-Match") String ifMatch,
                                   Map<String, Object> payload) {

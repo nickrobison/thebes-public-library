@@ -4,6 +4,8 @@ import com.nickrobison.tpl.model.Document;
 import com.nickrobison.tpl.model.Artifact;
 import com.nickrobison.tpl.workflow.WorkflowJob;
 import io.quarkus.test.junit.QuarkusTest;
+import jakarta.inject.Inject;
+import jakarta.transaction.UserTransaction;
 import io.restassured.RestAssured;
 import org.junit.jupiter.api.Test;
 import java.util.UUID;
@@ -12,6 +14,24 @@ import static org.hamcrest.Matchers.*;
 
 @QuarkusTest
 public class LibraryResourceIT {
+
+    @Inject
+    UserTransaction transaction;
+
+    private void inTransaction(Runnable work) {
+        try {
+            transaction.begin();
+            work.run();
+            transaction.commit();
+        } catch (Exception e) {
+            try {
+                transaction.rollback();
+            } catch (Exception rollbackError) {
+                e.addSuppressed(rollbackError);
+            }
+            throw new RuntimeException(e);
+        }
+    }
 
     @Test
     public void testPagination() {
@@ -94,7 +114,7 @@ public class LibraryResourceIT {
         testDoc.authors = "Test Author";
         testDoc.pubYear = 2024;
         testDoc.version = 1;
-        testDoc.persist();
+        inTransaction(testDoc::persist);
 
         given()
             .when()
@@ -103,7 +123,7 @@ public class LibraryResourceIT {
             .statusCode(200)
             .body("title", equalTo("Test Document"));
 
-        testDoc.delete();
+        inTransaction(testDoc::delete);
     }
 
     @Test
@@ -113,14 +133,15 @@ public class LibraryResourceIT {
         testDoc.id = testDocId;
         testDoc.title = "Artifact Test";
         testDoc.authors = "Author";
-        testDoc.version = 1;
-        testDoc.persist();
-
+        testDoc.version = 2;
         Artifact testArtifact = new Artifact();
         testArtifact.id = UUID.randomUUID();
         testArtifact.documentId = testDocId;
         testArtifact.storagePath = "/test/path";
-        testArtifact.persist();
+        inTransaction(() -> {
+            testDoc.persist();
+            testArtifact.persist();
+        });
 
         given()
             .when()
@@ -129,8 +150,10 @@ public class LibraryResourceIT {
             .statusCode(200)
             .body("size()", greaterThanOrEqualTo(1));
 
-        testArtifact.delete();
-        testDoc.delete();
+        inTransaction(() -> {
+            testArtifact.delete();
+            testDoc.delete();
+        });
     }
 
     @Test
@@ -140,27 +163,19 @@ public class LibraryResourceIT {
         testDoc.id = testId;
         testDoc.title = "Test Document";
         testDoc.authors = "Test";
-        testDoc.version = 1;
-        testDoc.persist();
-
-        Document updatedDoc = new Document();
-        updatedDoc.id = testId;
-        updatedDoc.title = "Updated Document";
-        updatedDoc.authors = "Updated";
-        updatedDoc.version = 1; // same version for stale test
-        updatedDoc.persist();
+        testDoc.version = 2;
+        inTransaction(testDoc::persist);
 
         given()
             .header("If-Match", "1")
             .contentType("application/json")
-            .body(updatedDoc)
+            .body("{\"title\":\"Updated Document\",\"authors\":\"Updated\"}")
             .when()
             .put("/api/v1/documents/" + testId)
             .then()
             .statusCode(409);
 
-        testDoc.delete();
-        updatedDoc.delete();
+        inTransaction(testDoc::delete);
     }
 
     @Test
@@ -168,8 +183,10 @@ public class LibraryResourceIT {
         UUID testDocId = UUID.randomUUID();
         WorkflowJob testJob = new WorkflowJob();
         testJob.id = UUID.randomUUID();
+        testJob.type = com.nickrobison.tpl.workflow.WorkflowType.IMPORT_SINGLE;
+        testJob.status = com.nickrobison.tpl.workflow.WorkflowStatus.PENDING;
         testJob.payload = "{\"documentId\":\"" + testDocId + "\"}";
-        testJob.persist();
+        inTransaction(testJob::persist);
 
         given()
             .when()
@@ -178,6 +195,6 @@ public class LibraryResourceIT {
             .statusCode(200)
             .body("size()", greaterThanOrEqualTo(1));
 
-        testJob.delete();
+        inTransaction(testJob::delete);
     }
 }
