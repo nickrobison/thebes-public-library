@@ -1,17 +1,30 @@
 package com.nickrobison.tpl.workflow;
 
+import com.nickrobison.tpl.bulkimport.BulkImportResult;
+import com.nickrobison.tpl.bulkimport.BulkImportService;
+import jakarta.enterprise.context.ApplicationScoped;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.UUID;
 
+@ApplicationScoped
 public class BulkImportWorkflow {
-    public UUID id = UUID.randomUUID();
-    public WorkflowType type = WorkflowType.IMPORT_BULK;
-    public WorkflowStatus status = WorkflowStatus.PENDING;
-    public String payload;
-    public Instant submittedAt = Instant.now();
-    public Instant completedAt;
 
-    public void persist() {
-        // Persist parent bulk import workflow to PG
+    private final BulkImportService bulkImportService = new BulkImportService();
+
+    public BulkImportResult run(Path dir, boolean recursive) throws Exception {
+        BulkImportResult result = bulkImportService.importDirectory(dir, recursive);
+
+        WorkflowJob parent = WorkflowJob.findById(UUID.fromString(result.parentId));
+        if (parent != null) {
+            parent.status = WorkflowStatus.COMPLETED;
+            parent.completedAt = Instant.now();
+            parent.persist();
+        }
+        return result;
+    }
+
+    public long countChildren(UUID parentId, WorkflowStatus status) {
+        return WorkflowJob.count("type = ?1 and status = ?2", WorkflowType.IMPORT_SINGLE, status);
     }
 }

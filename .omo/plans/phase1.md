@@ -134,7 +134,7 @@ W5 — Observability + Final Verification (depends on W1-W4): metrics + CI + F1-
   QA scenarios: happy = workflow → AVAILABLE artifact with verified checksum + required metadata keys; failure = checksum mismatch → FAILED + retry; restart-kill → resume, no partial AVAILABLE; `.omo/evidence/task-W3-phase1-FAIL.md` records
   Commit: `feat(artifact-publication): artifact pending→available + BLAKE3 verify + retry`
 
-- [ ] T-W4. W4 — Local-Directory Bulk Import
+- [x] T-W4. W4 — Local-Directory Bulk Import
   What to do / Must NOT do: `BulkImportService.java` (importDirectory recursive, ignores symlinks, `.pdf` filter); `BulkImportWorkflow.java` parent `IMPORT_BULK` with child `IMPORT_SINGLE` jobs; `ImportOperation.java` entity for provenance. Must NOT modify source directory; must NOT stop on individual failure.
   Parallelization: Wave W4 | Blocked by: W2 (upload workflow), W3 (publication) | Blocks: W5 (final)
   References: `BulkImportService.java`; `BulkImportWorkflow.java`; `ImportOperation.java`; Confluence Phase 1 decisions #9 (parent operation), #10 (read-only source), #11 (recursive/symlinks), #12 (provenance), #13 (original filename), #14 (physical metadata)

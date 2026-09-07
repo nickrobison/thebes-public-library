@@ -12,10 +12,14 @@ import java.util.UUID;
 public class ImportOperation extends PanacheEntityBase {
     @Id
     public UUID id = UUID.randomUUID();
-    public String mechanism; // WEB_UPLOAD or LOCAL_DIRECTORY
+    public String mechanism;
     public String sourcePath;
     public String originalFilename;
     public String status;
     public Instant submittedAt = Instant.now();
     public Instant completedAt;
+
+    public static ImportOperation findById(UUID id) {
+        return find("id", id).firstResult();
+    }
 }
