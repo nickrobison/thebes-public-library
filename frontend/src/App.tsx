@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 
 function App() {
-  const [health, setHealth] = useState(null);
+  const [health, setHealth] = useState<{ status: string } | null>(null);
 
   useEffect(() => {
     fetch('/health')
