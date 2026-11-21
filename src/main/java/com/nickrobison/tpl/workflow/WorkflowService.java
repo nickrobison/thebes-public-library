@@ -23,6 +23,8 @@ public class WorkflowService {
         if (job != null) {
             job.status = WorkflowStatus.PENDING;
             job.completedAt = null;
+            job.failureReason = null;
+            job.retryCount = 0;
             job.persist();
         }
     }

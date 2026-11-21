@@ -7,10 +7,13 @@ import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
 import jakarta.transaction.UserTransaction;
 import io.restassured.RestAssured;
+import io.restassured.response.Response;
 import org.junit.jupiter.api.Test;
-import java.util.UUID;
+import java.time.Instant;
+import java.util.*;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 @QuarkusTest
 public class LibraryResourceIT {
@@ -226,12 +229,12 @@ public class LibraryResourceIT {
         inTransaction(testDoc::persist);
 
         String jobId = given()
-                .contentType("application/json")
-                .body("{\"originalFilename\":\"paper.pdf\"}")
+                .multiPart("file", "paper.pdf", "PDF-BYTES".getBytes())
                 .when()
                 .post("/api/v1/documents/" + testDocId + "/artifacts")
                 .then()
                 .statusCode(200)
+                .body("status", equalTo("PENDING"))
                 .extract().path("jobId");
 
         // The created job must be discoverable through processing-history.
@@ -241,7 +244,8 @@ public class LibraryResourceIT {
                 .then()
                 .statusCode(200)
                 .body("size()", equalTo(1))
-                .body("[0].id", equalTo(jobId));
+                .body("[0].id", equalTo(jobId))
+                .body("[0].type", equalTo("ADD_ARTIFACT"));
 
         inTransaction(() -> {
             WorkflowJob.findById(UUID.fromString(jobId)).delete();
@@ -252,8 +256,7 @@ public class LibraryResourceIT {
     @Test
     public void testAddArtifactToMissingDocumentReturns404() {
         given()
-                .contentType("application/json")
-                .body("{\"originalFilename\":\"paper.pdf\"}")
+                .multiPart("file", "paper.pdf", "PDF-BYTES".getBytes())
                 .when()
                 .post("/api/v1/documents/" + UUID.randomUUID() + "/artifacts")
                 .then()
@@ -289,5 +292,87 @@ public class LibraryResourceIT {
             artifact.delete();
             testDoc.delete();
         });
+    }
+    @Test
+    public void testNullsSortLastWhenDesc() {
+        inTransaction(() -> {
+            Document beta = new Document();
+            beta.title = "BetaDesc";
+            beta.createdAt = Instant.parse("2024-01-01T00:00:00Z");
+            beta.persist();
+            Document alpha = new Document();
+            alpha.title = "AlphaDesc";
+            alpha.createdAt = Instant.parse("2024-01-01T00:00:00Z");
+            alpha.persist();
+            Document untitled = new Document();
+            untitled.title = null;
+            untitled.createdAt = Instant.parse("2024-01-01T00:00:00Z");
+            untitled.persist();
+        });
+
+        Response resp = given()
+                .param("sortField", "title")
+                .param("sortDir", "desc")
+                .when().get("/api/v1/library")
+                .then().statusCode(200)
+                .extract().response();
+
+        List<Map<String, Object>> items = resp.jsonPath().getList("items");
+        Map<String, Object> beta = items.stream().filter(i -> "BetaDesc".equals(i.get("title"))).findFirst().orElse(null);
+        Map<String, Object> alpha = items.stream().filter(i -> "AlphaDesc".equals(i.get("title"))).findFirst().orElse(null);
+        assertNotNull(beta, "BetaDesc should be present");
+        assertNotNull(alpha, "AlphaDesc should be present");
+        assertTrue(items.indexOf(beta) < items.indexOf(alpha), "desc: BetaDesc before AlphaDesc");
+        // Null titles must sort last (regression for the flipped comparator).
+        assertTrue(items.get(items.size() - 1).get("title") == null,
+                "last item in desc order must be a null-title document");
+    }
+
+    @Test
+    public void testCursorPagination() {
+        List<String> ours = new ArrayList<>();
+        inTransaction(() -> {
+            for (int i = 0; i < 5; i++) {
+                Document doc = new Document();
+                doc.title = "Cursor Page Doc " + i;
+                doc.createdAt = Instant.parse("2024-01-01T00:00:00Z");
+                doc.persist();
+                ours.add(doc.id.toString());
+            }
+        });
+
+        Set<String> seen = new HashSet<>();
+        String cursor = null;
+        int pages = 0;
+        do {
+            Response resp = given()
+                    .param("limit", "2")
+                    .param("sortField", "title")
+                    .param("sortDir", "asc")
+                    .when().get("/api/v1/library?cursor=" + (cursor != null ? cursor : ""))
+                    .then().statusCode(200)
+                    .extract().response();
+            List<Map<String, Object>> items = resp.jsonPath().getList("items");
+            assertEquals(2, items.size());
+            for (Map<String, Object> item : items) {
+                seen.add(item.get("id").toString());
+            }
+            cursor = resp.jsonPath().getString("nextCursor");
+            pages++;
+            assertTrue(pages < 10, "cursor should terminate, not loop");
+        } while (cursor != null);
+
+        ours.forEach(id -> assertTrue(seen.contains(id), "doc " + id + " should have been paginated"));
+    }
+
+    @Test
+    public void testUnknownCursorReturnsEmpty() {
+        given()
+                .param("cursor", UUID.randomUUID().toString())
+                .when().get("/api/v1/library")
+                .then()
+                .statusCode(200)
+                .body("items.size()", equalTo(0))
+                .body("nextCursor", nullValue());
     }
 }

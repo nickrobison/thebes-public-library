@@ -66,7 +66,7 @@ public class ImportWorkflow {
                     long sample = metrics.startValidation();
                     try {
                         String payload = job.payload;
-                        String tempRef = extractTempRef(payload);
+                        String tempRef = extract(payload, "tempInputRef");
 
                         InputStream data = tempInput.load(tempRef);
 
@@ -90,8 +90,19 @@ public class ImportWorkflow {
                     long sample = metrics.startStorage();
                     try {
                         String payload = job.payload;
-                        String tempRef = extractTempRef(payload);
-                        String originalFilename = extractFilename(payload);
+                        String tempRef = extract(payload, "tempInputRef");
+                        String originalFilename = extract(payload, "originalFilename");
+                        String documentIdStr = extract(payload, "documentId");
+
+                        Document target;
+                        if (documentIdStr != null) {
+                            target = Document.findById(UUID.fromString(documentIdStr));
+                            if (target == null) {
+                                throw new RuntimeException("Document not found: " + documentIdStr);
+                            }
+                        } else {
+                            target = null;
+                        }
 
                         // Buffer the bytes once: the checksum consumes the stream, and
                         // publication needs to write the same bytes afterwards. Reading
@@ -102,26 +113,34 @@ public class ImportWorkflow {
                         }
                         String blake3Hash = checksum.calculate(new java.io.ByteArrayInputStream(bytes));
 
-                        // Create Document (reuse Phase 0 Document.java — one row per successful import)
-                        Document doc = new Document();
-                        doc.id = UUID.randomUUID();
-                        doc.title = originalFilename;
-                        doc.createdAt = Instant.now();
-                        doc.updatedAt = Instant.now();
-                        doc.persist();
+                        if (target == null) {
+                            // Web upload: create Document (reuse Phase 0 Document.java — one row per successful import)
+                            Document doc = new Document();
+                            doc.id = UUID.randomUUID();
+                            doc.title = originalFilename;
+                            doc.createdAt = Instant.now();
+                            doc.updatedAt = Instant.now();
+                            doc.persist();
+                            target = doc;
+                        }
 
                         // Create pending Artifact
                         Artifact artifact = new Artifact();
                         artifact.id = UUID.randomUUID();
-                        artifact.documentId = doc.id;
+                        artifact.documentId = target.id;
                         artifact.storagePath = "storage:" + artifact.id.toString();
                         artifact.contentChecksum = blake3Hash;
                         artifact.createdAt = Instant.now();
                         artifact.status = ArtifactState.PENDING;
                         artifact.originalFilename = originalFilename;
-                        artifact.importProvenanceJson = "{\"mechanism\":\"WEB_UPLOAD\",\"importOperationId\":\"" + job.id + "\"}";
+                        artifact.importProvenanceJson = "{\"mechanism\":\""
+                                + (job.type == WorkflowType.ADD_ARTIFACT ? "ADD_ARTIFACT" : "WEB_UPLOAD")
+                                + "\",\"importOperationId\":\"" + job.id + "\"}";
                         artifact.physicalMetadataJson = "{\"size\":" + bytes.length + ",\"mimeType\":\"application/pdf\",\"blake3\":\"" + blake3Hash + "\"}";
                         artifact.persist();
+
+                        target.updatedAt = Instant.now();
+                        target.persist();
 
                         // Save to Storage and verify (via ArtifactPublicationService — Storage interface ONLY)
                         publicationService.publish(artifact, new java.io.ByteArrayInputStream(bytes), blake3Hash);
@@ -158,8 +177,14 @@ public class ImportWorkflow {
             metrics.completed();
 
         } catch (Exception e) {
-            // This transaction is already rollback-only, so writing FAILED here would
-            // be discarded and strand the job in RUNNING. Record it out of band.
+            // Record the terminal failure on the job. The catch runs while the
+            // caller's transaction is compromised (already rollback-only or about
+            // to commit with stale state), so set the FAILED state in-band here —
+            // it commits with the transaction. The out-of-band recorder is used
+            // for failures that escape the process() boundary.
+            job.status = WorkflowStatus.FAILED;
+            job.failureReason = e.getMessage() != null ? e.getMessage().substring(0, Math.min(1000, e.getMessage().length())) : "Unknown workflow failure";
+            job.persist();
             failureRecorder.recordFailure(jobId, e.getMessage());
             metrics.failed();
         }
@@ -175,6 +200,8 @@ public class ImportWorkflow {
             } catch (Exception e) {
                 attempts++;
                 lastException = e;
+                job.retryCount++;
+                job.persist();
                 if (attempts >= MAX_RETRIES) {
                     throw new RuntimeException("Stage " + stageName + " failed after " + MAX_RETRIES + " attempts", lastException);
                 }
@@ -182,12 +209,14 @@ public class ImportWorkflow {
         }
     }
 
-    private String extractTempRef(String payload) {
-        // Simple JSON parsing for payload
-        return payload.contains("tempInputRef") ? payload.split("\"")[3] : "unknown";
-    }
-
-    private String extractFilename(String payload) {
-        return payload.contains("originalFilename") ? payload.split("\"")[7] : "unknown.pdf";
+    /** Extracts a `"key":"value"` string from the payload JSON. */
+    private static String extract(String payload, String key) {
+        if (payload == null) return null;
+        String marker = "\"" + key + "\":\"";
+        int start = payload.indexOf(marker);
+        if (start < 0) return null;
+        int valueStart = start + marker.length();
+        int valueEnd = payload.indexOf('"', valueStart);
+        return payload.substring(valueStart, valueEnd);
     }
 }

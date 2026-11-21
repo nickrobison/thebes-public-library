@@ -34,6 +34,9 @@ public class WorkflowJobRunner {
         if (job == null || job.status != WorkflowStatus.PENDING) {
             return false;
         }
+        // A new claim starts with a clean slate.
+        job.retryCount = 0;
+        job.failureReason = null;
         job.status = WorkflowStatus.RUNNING;
         job.persist();
         return true;

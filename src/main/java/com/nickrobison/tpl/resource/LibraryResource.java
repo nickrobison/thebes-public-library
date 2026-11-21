@@ -1,12 +1,15 @@
 package com.nickrobison.tpl.resource;
 
-import com.nickrobison.tpl.model.Document;
 import com.nickrobison.tpl.model.Artifact;
+import com.nickrobison.tpl.model.Document;
 import com.nickrobison.tpl.model.ArtifactState;
 import com.nickrobison.tpl.storage.Storage;
+import com.nickrobison.tpl.temp.TempInput;
 import com.nickrobison.tpl.workflow.WorkflowJob;
 import com.nickrobison.tpl.workflow.WorkflowType;
 import com.nickrobison.tpl.workflow.WorkflowStatus;
+import org.jboss.resteasy.reactive.multipart.FileUpload;
+import org.jboss.resteasy.reactive.RestForm;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
@@ -15,6 +18,7 @@ import jakarta.ws.rs.core.StreamingOutput;
 import jakarta.transaction.Transactional;
 
 import java.io.InputStream;
+import java.nio.file.Files;
 import java.time.Instant;
 import java.util.*;
 
@@ -24,31 +28,38 @@ import java.util.*;
 public class LibraryResource {
 
     private final Storage storage;
+    private final TempInput tempInput;
 
-    public LibraryResource(Storage storage) {
+    public LibraryResource(Storage storage, TempInput tempInput) {
         this.storage = storage;
+        this.tempInput = tempInput;
     }
 
-    /** Null-safe string ordering; nulls sort last regardless of direction flip. */
-    private static int compareStrings(String a, String b) {
-        if (a == null && b == null) return 0;
-        if (a == null) return 1;
-        if (b == null) return -1;
-        return a.compareTo(b);
+    /** Maps a document to its sortable value for the requested field; null when unset/unknown. */
+    private static Object sortValue(Document doc, String field) {
+        return switch (field) {
+            case "title" -> doc.title;
+            case "authors" -> doc.authors;
+            case "publicationYear", "pubYear" -> doc.pubYear;
+            case "processingStatus" -> doc.processingStatus;
+            case "createdAt" -> doc.createdAt;
+            default -> null;
+        };
     }
 
-    private static int compareInts(Integer a, Integer b) {
-        if (a == null && b == null) return 0;
-        if (a == null) return 1;
-        if (b == null) return -1;
-        return Integer.compare(a, b);
+    private static int compareValues(Object a, Object b) {
+        if (a instanceof String sa && b instanceof String sb) return sa.compareTo(sb);
+        if (a instanceof Integer ia && b instanceof Integer ib) return Integer.compare(ia, ib);
+        if (a instanceof Instant ia && b instanceof Instant ib) return ia.compareTo(ib);
+        return 0;
     }
 
-    private static int compareInstants(Instant a, Instant b) {
-        if (a == null && b == null) return 0;
-        if (a == null) return 1;
-        if (b == null) return -1;
-        return a.compareTo(b);
+    /** Nulls always sort last; non-null comparisons flip on `desc`. */
+    private static int applyDirection(boolean aNull, boolean bNull, boolean desc, int cmp) {
+        if (aNull && bNull) return 0;
+        if (aNull) return 1;
+        if (bNull) return -1;
+        return desc ? -cmp : cmp;
     }
 
     @GET
@@ -61,26 +72,39 @@ public class LibraryResource {
         Set<String> allowed = Set.of("title", "authors", "publicationYear", "pubYear",
                 "processingStatus", "createdAt");
         String field = allowed.contains(sortField) ? sortField : "createdAt";
+        boolean desc = sortDir.equalsIgnoreCase("desc");
         List<Document> allDocs = Document.listAll();
         // Retrieve the full sorted list and paginate in memory.
         // Sufficient for the ~10k document corpus targeted in Phase 3; revisit with
         // keyset pagination if the corpus outgrows a single-page sort.
         Comparator<Document> comp = (a, b) -> {
-            int cmp = switch (field) {
-                case "title" -> compareStrings(a.title, b.title);
-                case "authors" -> compareStrings(a.authors, b.authors);
-                case "publicationYear", "pubYear" -> compareInts(a.pubYear, b.pubYear);
-                case "processingStatus" -> compareStrings(a.processingStatus, b.processingStatus);
-                default -> compareInstants(a.createdAt, b.createdAt);
-            };
-            return sortDir.equalsIgnoreCase("desc") ? -cmp : cmp;
+            Object va = sortValue(a, field);
+            Object vb = sortValue(b, field);
+            return applyDirection(va == null, vb == null, desc, compareValues(va, vb));
         };
         // Tie-break on id so equal sort keys yield a stable, repeatable cursor order.
         allDocs.sort(comp.thenComparing(d -> d.id.toString()));
-        int fromIndex = cursor != null && !cursor.isEmpty() ? allDocs.indexOf(Document.findById(UUID.fromString(cursor))) + 1 : 0;
-        if (fromIndex < 0 || fromIndex >= allDocs.size()) fromIndex = 0;
-        int toIndex = Math.min(fromIndex + limit, allDocs.size());
-        List<Document> docs = allDocs.subList(fromIndex, toIndex);
+        // Build the page after the cursor. An unknown, malformed, or past-the-end
+        // cursor returns an empty page with a null nextCursor instead of restarting.
+        int fromIndex = 0;
+        if (cursor != null && !cursor.isEmpty()) {
+            Document cursorDoc = null;
+            try {
+                cursorDoc = Document.findById(UUID.fromString(cursor));
+            } catch (IllegalArgumentException ignored) {
+                cursorDoc = null;
+            }
+            int idx = cursorDoc != null ? allDocs.indexOf(cursorDoc) : -1;
+            if (idx < 0) {
+                fromIndex = allDocs.size();
+            } else {
+                fromIndex = idx + 1;
+            }
+        }
+        int limitClamped = Math.max(0, limit);
+        int toIndex = Math.min(fromIndex + limitClamped, allDocs.size());
+        List<Document> docs = fromIndex < allDocs.size()
+                ? allDocs.subList(fromIndex, toIndex) : List.of();
         List<Map<String, Object>> result = new ArrayList<>();
         for (Document d : docs) {
             Map<String, Object> item = new HashMap<>();
@@ -93,7 +117,8 @@ public class LibraryResource {
         }
         Map<String, Object> resp = new HashMap<>();
         resp.put("items", result);
-        resp.put("nextCursor", docs.size() >= limit ? docs.get(docs.size() - 1).id.toString() : null);
+        resp.put("nextCursor", (toIndex < allDocs.size() && !docs.isEmpty())
+                ? docs.get(docs.size() - 1).id.toString() : null);
         return Response.ok(resp).build();
     }
 
@@ -143,14 +168,14 @@ public class LibraryResource {
         if (expectedVersion > 0 && existing.version != expectedVersion) {
             return Response.status(409, "Document version mismatch. Expected version: " + expectedVersion + ", current: " + existing.version).build();
         }
-        if (payload.containsKey("title")) existing.title = (String) payload.get("title");
-        if (payload.containsKey("authors")) existing.authors = (String) payload.get("authors");
-        if (payload.containsKey("publicationYear")) existing.pubYear = ((Number) payload.get("publicationYear")).intValue();
-        if (payload.containsKey("journal")) existing.journal = (String) payload.get("journal");
-        if (payload.containsKey("volume")) existing.volume = (String) payload.get("volume");
-        if (payload.containsKey("issue")) existing.issue = (String) payload.get("issue");
-        if (payload.containsKey("pages")) existing.pages = (String) payload.get("pages");
-        if (payload.containsKey("doi")) existing.doi = (String) payload.get("doi");
+        if (payload.containsKey("title") && payload.get("title") instanceof String v) existing.title = v;
+        if (payload.containsKey("authors") && payload.get("authors") instanceof String v) existing.authors = v;
+        if (payload.containsKey("publicationYear") && payload.get("publicationYear") instanceof Number v) existing.pubYear = v.intValue();
+        if (payload.containsKey("journal") && payload.get("journal") instanceof String v) existing.journal = v;
+        if (payload.containsKey("volume") && payload.get("volume") instanceof String v) existing.volume = v;
+        if (payload.containsKey("issue") && payload.get("issue") instanceof String v) existing.issue = v;
+        if (payload.containsKey("pages") && payload.get("pages") instanceof String v) existing.pages = v;
+        if (payload.containsKey("doi") && payload.get("doi") instanceof String v) existing.doi = v;
         existing.version = existing.version + 1;
         existing.persist();
         Map<String, Object> resp = new HashMap<>();
@@ -184,24 +209,29 @@ public class LibraryResource {
 
     @POST
     @Path("/documents/{id}/artifacts")
-    @Consumes(MediaType.APPLICATION_JSON)
+    @Consumes(MediaType.MULTIPART_FORM_DATA)
     @Produces(MediaType.APPLICATION_JSON)
     @Transactional
-    public Response addArtifact(@PathParam("id") UUID docId, Map<String, Object> payload) {
+    public Response addArtifact(@PathParam("id") UUID docId, @RestForm FileUpload file) throws Exception {
         Document document = Document.findById(docId);
         if (document == null) {
             return Response.status(Response.Status.NOT_FOUND)
                     .entity(Map.of("error", "Document not found")).build();
         }
-        String originalFilename = payload.get("originalFilename") instanceof String name
-                ? name
-                : "artifact-" + UUID.randomUUID();
+        // Stage the bytes so the artifact workflow can read them by temp ref,
+        // mirroring the upload-pipeline payload shape (see UploadResource).
+        String tempRef = tempInput.store(Files.newInputStream(file.uploadedFile()));
+        String originalFilename = file.fileName();
+
         WorkflowJob job = new WorkflowJob();
         job.id = UUID.randomUUID();
-        job.type = WorkflowType.IMPORT_SINGLE;
+        job.type = WorkflowType.ADD_ARTIFACT;
         job.status = WorkflowStatus.PENDING;
-        // Store the documentId inside the JSON payload so processing-history can find this job.
-        job.payload = "{\"documentId\":\"" + docId + "\",\"originalFilename\":\"" + originalFilename + "\"}";
+        // Store the documentId + tempInputRef inside the JSON payload so the
+        // workflow attaches the new artifact to the existing document and so
+        // processing-history can find this job.
+        job.payload = "{\"documentId\":\"" + docId + "\",\"tempInputRef\":\"" + tempRef
+                + "\",\"originalFilename\":\"" + originalFilename.replace("\"", "") + "\"}";
         job.submittedAt = Instant.now();
         job.persist();
         Map<String, Object> resp = new HashMap<>();
