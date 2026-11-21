@@ -1,8 +1,9 @@
 package com.nickrobison.tpl.resource;
 
 import com.nickrobison.tpl.metrics.ImportMetrics;
-import com.nickrobison.tpl.workflow.WorkflowService;
+import com.nickrobison.tpl.temp.TempInput;
 import com.nickrobison.tpl.workflow.WorkflowJob;
+import com.nickrobison.tpl.workflow.WorkflowService;
 import com.nickrobison.tpl.workflow.WorkflowType;
 import com.nickrobison.tpl.workflow.WorkflowStatus;
 import jakarta.ws.rs.Consumes;
@@ -12,6 +13,7 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import org.jboss.resteasy.reactive.multipart.FileUpload;
+import org.jboss.resteasy.reactive.RestForm;
 
 import java.io.InputStream;
 import java.time.Instant;
@@ -24,31 +26,39 @@ public class UploadResource {
 
     private final WorkflowService workflowService;
     private final ImportMetrics metrics;
+    private final TempInput tempInput;
 
-    public UploadResource(WorkflowService workflowService, ImportMetrics metrics) {
+    public UploadResource(WorkflowService workflowService, ImportMetrics metrics, TempInput tempInput) {
         this.workflowService = workflowService;
         this.metrics = metrics;
+        this.tempInput = tempInput;
     }
 
     @POST
     @Path("/upload")
     @Consumes(MediaType.MULTIPART_FORM_DATA)
     @Produces(MediaType.APPLICATION_JSON)
-    public Response upload(FileUpload file) throws Exception {
+    public Response upload(@RestForm FileUpload file) throws Exception {
         String originalFilename = file.fileName();
-        java.nio.file.Path uploadedPath = file.uploadedFile();
-        java.io.InputStream data = java.nio.file.Files.newInputStream(uploadedPath);
 
-        // Store to temporary input (simplified for W2)
-        String tempRef = "temp-" + UUID.randomUUID().toString();
+        // Persist the bytes before queueing the job. Previously this invented a
+        // "temp-<uuid>" ref without storing anything, so the workflow's later
+        // tempInput.load(ref) could never find the upload.
+        String tempRef;
+        try (InputStream data = java.nio.file.Files.newInputStream(file.uploadedFile())) {
+            tempRef = tempInput.store(data);
+        }
 
         WorkflowJob job = new WorkflowJob();
         job.id = UUID.randomUUID();
         job.type = WorkflowType.IMPORT_SINGLE;
         job.status = WorkflowStatus.PENDING;
-        job.payload = "{\"tempInputRef\":\"" + tempRef + "\",\"originalFilename\":\"" + originalFilename + "\"}";
+        job.payload = "{\"tempInputRef\":\"" + tempRef + "\",\"originalFilename\":\""
+                + originalFilename.replace("\"", "") + "\"}";
         job.submittedAt = Instant.now();
 
+        // The worker claims PENDING jobs; persist the payload in the same unit of
+        // work as the job row so the poller never sees a half-written payload.
         workflowService.submit(job);
         metrics.accepted();
 

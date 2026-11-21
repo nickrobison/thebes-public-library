@@ -14,9 +14,9 @@ public class ArtifactPublicationService {
     private final Storage storage;
     private final Blake3Checksum checksum;
 
-    public ArtifactPublicationService(Storage storage) {
+    public ArtifactPublicationService(Storage storage, Blake3Checksum checksum) {
         this.storage = storage;
-        this.checksum = new Blake3Checksum();
+        this.checksum = checksum;
     }
 
     public void publish(Artifact artifact, InputStream data, String checksumValue) throws Exception {

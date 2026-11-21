@@ -12,6 +12,7 @@ import com.nickrobison.tpl.temp.TempInput;
 import com.nickrobison.tpl.service.ArtifactPublicationService;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.transaction.Transactional;
 import java.io.InputStream;
 import java.time.Instant;
 import java.util.UUID;
@@ -25,14 +26,32 @@ public class ImportWorkflow {
     private final Storage storage;
     private final ArtifactPublicationService publicationService;
     private final ImportMetrics metrics;
+    private final TempInput tempInput;
+    private final PdfValidator validator;
+    private final Blake3Checksum checksum;
+    private final WorkflowFailureRecorder failureRecorder;
 
-    public ImportWorkflow(WorkflowService workflowService, Storage storage, ArtifactPublicationService publicationService, ImportMetrics metrics) {
+    public ImportWorkflow(WorkflowService workflowService,
+                          Storage storage,
+                          ArtifactPublicationService publicationService,
+                          ImportMetrics metrics,
+                          TempInput tempInput,
+                          PdfValidator validator,
+                          Blake3Checksum checksum,
+                          WorkflowFailureRecorder failureRecorder) {
         this.workflowService = workflowService;
         this.storage = storage;
         this.publicationService = publicationService;
         this.metrics = metrics;
+        // Injected, not constructed: FilesystemTempInput relies on @PostConstruct to
+        // create its temp directory, so `new FilesystemTempInput()` left tempDir null.
+        this.tempInput = tempInput;
+        this.validator = validator;
+        this.checksum = checksum;
+        this.failureRecorder = failureRecorder;
     }
 
+    @Transactional
     public void process(UUID jobId) throws Exception {
         WorkflowJob job = WorkflowJob.findById(jobId);
         if (job == null) return;
@@ -48,12 +67,9 @@ public class ImportWorkflow {
                     try {
                         String payload = job.payload;
                         String tempRef = extractTempRef(payload);
-                        String originalFilename = extractFilename(payload);
 
-                        TempInput tempInput = new com.nickrobison.tpl.temp.FilesystemTempInput();
                         InputStream data = tempInput.load(tempRef);
 
-                        PdfValidator validator = new PdfBoxValidator();
                         if (!validator.isValid(data)) {
                             throw new RuntimeException("PDF validation failed");
                         }
@@ -65,6 +81,7 @@ public class ImportWorkflow {
                 });
                 job.currentStage = "STORAGE";
                 job.persist();
+                stage = "STORAGE";
             }
 
             // Stage 2: STORAGE (with retry) — uses ArtifactPublicationService (Storage interface ONLY)
@@ -76,12 +93,14 @@ public class ImportWorkflow {
                         String tempRef = extractTempRef(payload);
                         String originalFilename = extractFilename(payload);
 
-                        TempInput tempInput = new com.nickrobison.tpl.temp.FilesystemTempInput();
-                        InputStream data = tempInput.load(tempRef);
-
-                        // Calculate BLAKE3 checksum
-                        Blake3Checksum checksum = new Blake3Checksum();
-                        String blake3Hash = checksum.calculate(data);
+                        // Buffer the bytes once: the checksum consumes the stream, and
+                        // publication needs to write the same bytes afterwards. Reading
+                        // the stream twice silently published a truncated/empty artifact.
+                        byte[] bytes;
+                        try (InputStream raw = tempInput.load(tempRef)) {
+                            bytes = raw.readAllBytes();
+                        }
+                        String blake3Hash = checksum.calculate(new java.io.ByteArrayInputStream(bytes));
 
                         // Create Document (reuse Phase 0 Document.java — one row per successful import)
                         Document doc = new Document();
@@ -101,11 +120,11 @@ public class ImportWorkflow {
                         artifact.status = ArtifactState.PENDING;
                         artifact.originalFilename = originalFilename;
                         artifact.importProvenanceJson = "{\"mechanism\":\"WEB_UPLOAD\",\"importOperationId\":\"" + job.id + "\"}";
-                        artifact.physicalMetadataJson = "{\"size\":" + data.available() + ",\"mimeType\":\"application/pdf\",\"blake3\":\"" + blake3Hash + "\",\"pdfVersion\":\"1.4\",\"pageCount\":1,\"encrypted\":false}";
+                        artifact.physicalMetadataJson = "{\"size\":" + bytes.length + ",\"mimeType\":\"application/pdf\",\"blake3\":\"" + blake3Hash + "\"}";
                         artifact.persist();
 
                         // Save to Storage and verify (via ArtifactPublicationService — Storage interface ONLY)
-                        publicationService.publish(artifact, data, blake3Hash);
+                        publicationService.publish(artifact, new java.io.ByteArrayInputStream(bytes), blake3Hash);
                     } catch (Exception ex) {
                         throw new RuntimeException(ex);
                     } finally {
@@ -114,6 +133,7 @@ public class ImportWorkflow {
                 });
                 job.currentStage = "VERIFICATION";
                 job.persist();
+                stage = "VERIFICATION";
             }
 
             // Stage 3: VERIFICATION (with retry) — BLAKE3 verify after storage
@@ -138,10 +158,9 @@ public class ImportWorkflow {
             metrics.completed();
 
         } catch (Exception e) {
-            job.status = WorkflowStatus.FAILED;
-            job.failureReason = e.getMessage();
-            job.completedAt = Instant.now();
-            job.persist();
+            // This transaction is already rollback-only, so writing FAILED here would
+            // be discarded and strand the job in RUNNING. Record it out of band.
+            failureRecorder.recordFailure(jobId, e.getMessage());
             metrics.failed();
         }
     }

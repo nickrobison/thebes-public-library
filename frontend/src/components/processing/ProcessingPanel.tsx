@@ -2,28 +2,22 @@
 
 import React, { useState } from 'react';
 import { toast } from 'sonner';
+import type { ProcessingHistoryItem } from '../../types/document';
 
-interface ProcessingHistory {
-  id: string;
-  type: string;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
-  currentStage: string;
-  retryCount: number;
-  submittedAt: string;
-  completedAt?: string;
-  failureReason?: string;
-  payload?: any;
-  stages: ProcessingStage[];
-}
+type WorkflowStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
 
 interface ProcessingStage {
   name: string;
-  status: 'pending' | 'running' | 'completed' | 'failed';
+  status: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
   startTime?: string;
   endTime?: string;
-  output?: any;
+  output?: unknown;
   error?: string;
 }
+
+type ProcessingHistory = Omit<ProcessingHistoryItem, 'stages'> & {
+  stages: ProcessingStage[];
+};
 
 interface ProcessingPanelProps {
   documentId: string;
@@ -39,8 +33,11 @@ export function ProcessingPanel({ documentId }: ProcessingPanelProps) {
     try {
       const response = await fetch(`/api/v1/documents/${documentId}/processing-history`);
       if (response.ok) {
-        const data = await response.json();
-        setProcessingHistory(data);
+        const data = (await response.json()) as ProcessingHistory[];
+        // Guard against unexpected stage shapes so one bad row cannot blank the panel.
+        setProcessingHistory(
+          data.map((run) => ({ ...run, stages: Array.isArray(run.stages) ? run.stages : [] }))
+        );
       } else {
         toast.error('Failed to load processing history');
       }
@@ -51,15 +48,19 @@ export function ProcessingPanel({ documentId }: ProcessingPanelProps) {
     }
   };
 
-  const getStatusBadge = (status: ProcessingHistory['status']) => {
-    const statusConfig = {
-      pending: { className: 'bg-yellow-100 text-yellow-800', label: 'Pending' },
-      processing: { className: 'bg-blue-100 text-blue-800', label: 'Processing' },
-      completed: { className: 'bg-green-100 text-green-800', label: 'Completed' },
-      failed: { className: 'bg-red-100 text-red-800', label: 'Failed' }
-    };
+  const STATUS_BADGES: Record<WorkflowStatus, { className: string; label: string }> = {
+    PENDING: { className: 'bg-yellow-100 text-yellow-800', label: 'Pending' },
+    RUNNING: { className: 'bg-blue-100 text-blue-800', label: 'Running' },
+    COMPLETED: { className: 'bg-green-100 text-green-800', label: 'Completed' },
+    FAILED: { className: 'bg-red-100 text-red-800', label: 'Failed' },
+  };
 
-    const config = statusConfig[status];
+  const getStatusBadge = (status: string) => {
+    // Fall back to a neutral badge for unexpected values rather than throwing.
+    const config = STATUS_BADGES[status as WorkflowStatus] ?? {
+      className: 'bg-gray-100 text-gray-800',
+      label: status,
+    };
     return (
       <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${config.className}`}>
         {config.label}
@@ -72,7 +73,11 @@ export function ProcessingPanel({ documentId }: ProcessingPanelProps) {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+    <div
+      data-testid="processing-panel"
+      data-expanded={isExpanded}
+      className="bg-white rounded-lg shadow-sm border border-gray-200"
+    >
       <div
         className="p-4 cursor-pointer hover:bg-gray-50 transition-colors"
         onClick={() => {
@@ -162,9 +167,9 @@ export function ProcessingPanel({ documentId }: ProcessingPanelProps) {
                             <span className="text-sm font-medium w-24">{stage.name}</span>
                             <div className="flex items-center space-x-2">
                               <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full
-                                ${stage.status === 'completed' ? 'bg-green-100 text-green-800' :
-                                  stage.status === 'running' ? 'bg-blue-100 text-blue-800' :
-                                  stage.status === 'failed' ? 'bg-red-100 text-red-800' :
+                                ${stage.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
+                                  stage.status === 'RUNNING' ? 'bg-blue-100 text-blue-800' :
+                                  stage.status === 'FAILED' ? 'bg-red-100 text-red-800' :
                                   'bg-gray-100 text-gray-800'}
                               }`}
                               >

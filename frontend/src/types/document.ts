@@ -1,41 +1,38 @@
-export interface Document {
+export interface DocumentDetail {
   id: string;
-  bibliographicFields: {
-    title: string;
-    authors: string;
-    pubYear: string;
-    journal: string;
-    volume: string;
-    issue: string;
-    pages: string;
-    doi: string;
-    version: number;
-  };
+  title: string;
+  authors: string | null;
+  publicationYear: number | null;
+  journal: string | null;
+  volume: string | null;
+  issue: string | null;
+  pages: string | null;
+  doi: string | null;
+  version: number;
   createdAt: string;
   updatedAt: string;
+  preferredArtifactId: string | null;
+  artifacts: Artifact[];
 }
 
 export interface Artifact {
   id: string;
-  filename: string;
+  documentId: string;
   originalFilename: string;
-  fileSize: number;
-  mimeType: string;
+  status: 'PENDING' | 'AVAILABLE' | 'FAILED';
   isPreferred: boolean;
-  status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
-  processingProgress?: number;
   createdAt: string;
-  updatedAt: string;
 }
 
-export interface BibliographicFields {
-  title: string;
-  authors: string;
-  pubYear: string;
-  journal: string;
-  volume: string;
-  issue: string;
-  pages: string;
-  doi: string;
-  version: number;
+export interface ProcessingHistoryItem {
+  id: string;
+  type: string;
+  status: string;
+  currentStage: string | null;
+  retryCount: number;
+  submittedAt: string;
+  completedAt: string | null;
+  failureReason: string | null;
+  payload: string;
+  stages: unknown[];
 }

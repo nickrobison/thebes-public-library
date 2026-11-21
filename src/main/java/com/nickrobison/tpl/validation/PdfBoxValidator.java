@@ -1,8 +1,11 @@
 package com.nickrobison.tpl.validation;
 
+import jakarta.enterprise.context.ApplicationScoped;
+
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 
+@ApplicationScoped
 public class PdfBoxValidator implements PdfValidator {
 
     @Override

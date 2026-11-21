@@ -7,11 +7,11 @@ import * as Dialog from '@radix-ui/react-dialog';
 interface MetadataEditorModalProps {
   isOpen: boolean;
   onClose: () => void;
-  initialData: any;
-  onSave: (data: any) => void;
+  initialData: BibliographicFields;
+  onSave: (data: BibliographicFields) => void;
 }
 
-interface BibliographicFields {
+export interface BibliographicFields {
   title: string;
   authors: string;
   pubYear: string;

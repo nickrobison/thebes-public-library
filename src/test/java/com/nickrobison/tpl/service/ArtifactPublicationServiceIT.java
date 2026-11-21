@@ -54,8 +54,8 @@ public class ArtifactPublicationServiceIT {
     @Transactional
     public void testPublishTransitionsToAvailable() throws Exception {
         Storage storage = new FilesystemStorage();
-        ArtifactPublicationService service = new ArtifactPublicationService(storage);
         Blake3Checksum checksum = new Blake3Checksum();
+        ArtifactPublicationService service = new ArtifactPublicationService(storage, checksum);
 
         byte[] bytes = "%PDF-1.4 valid artifact bytes %%EOF".getBytes();
         String hash = checksum.calculate(new ByteArrayInputStream(bytes));
@@ -75,7 +75,7 @@ public class ArtifactPublicationServiceIT {
     @Transactional
     public void testChecksumMismatchTransitionsToFailed() throws Exception {
         Storage storage = new FilesystemStorage();
-        ArtifactPublicationService service = new ArtifactPublicationService(storage);
+        ArtifactPublicationService service = new ArtifactPublicationService(storage, new Blake3Checksum());
 
         byte[] bytes = "%PDF-1.4 stored bytes %%EOF".getBytes();
         Artifact artifact = newPendingArtifact("mismatch.pdf");
@@ -92,7 +92,8 @@ public class ArtifactPublicationServiceIT {
     @Test
     @Transactional
     public void testStorageFailureLeavesNoAvailablePartial() {
-        ArtifactPublicationService service = new ArtifactPublicationService(new FailingStorage());
+        ArtifactPublicationService service =
+                new ArtifactPublicationService(new FailingStorage(), new Blake3Checksum());
 
         Artifact artifact = newPendingArtifact("unreachable.pdf");
         artifact.contentChecksum = "abc123";

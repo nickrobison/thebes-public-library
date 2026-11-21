@@ -74,9 +74,9 @@ export function ArtifactsPanel({ documentId }: ArtifactsPanelProps) {
       default: return 'text-gray-600';
     }
   };
-  
+
   return (
-    <div className="bg-white rounded-lg shadow-sm p-6">
+    <div data-testid="artifacts-panel" className="bg-white rounded-lg shadow-sm p-6">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-xl font-semibold text-gray-900">Artifacts</h2>
         <div className="flex items-center space-x-3">
@@ -84,10 +84,6 @@ export function ArtifactsPanel({ documentId }: ArtifactsPanelProps) {
             <SelectionToolbar
               selectedCount={selected.size}
               onClear={clearSelection}
-              onAction={(action) => {
-                console.log('Bulk action:', action, 'on', selected.size, 'items');
-                toast.info(`${action} action on ${selected.size} items`);
-              }}
             />
           )}
           <button

@@ -15,12 +15,33 @@ interface BibliographicFields {
   version: number;
 }
 
-interface DocumentMetadata {
+/** Shape returned by GET /api/v1/documents/{id}. */
+interface DocumentMetadataResponse {
   id: string;
-  fields: BibliographicFields;
+  title?: string | null;
+  authors?: string | null;
+  publicationYear?: number | null;
+  journal?: string | null;
+  volume?: string | null;
+  issue?: string | null;
+  pages?: string | null;
+  doi?: string | null;
+  version?: number;
 }
 
-const fetchDocumentMetadata = async (documentId: string): Promise<DocumentMetadata> => {
+const toFields = (doc: DocumentMetadataResponse): BibliographicFields => ({
+  title: doc.title ?? '',
+  authors: doc.authors ?? '',
+  pubYear: doc.publicationYear != null ? String(doc.publicationYear) : '',
+  journal: doc.journal ?? '',
+  volume: doc.volume ?? '',
+  issue: doc.issue ?? '',
+  pages: doc.pages ?? '',
+  doi: doc.doi ?? '',
+  version: doc.version ?? 0,
+});
+
+const fetchDocumentMetadata = async (documentId: string): Promise<DocumentMetadataResponse> => {
   const response = await fetch(`/api/v1/documents/${documentId}`);
   if (!response.ok) {
     throw new Error('Failed to fetch document metadata');
@@ -29,17 +50,24 @@ const fetchDocumentMetadata = async (documentId: string): Promise<DocumentMetada
 };
 
 const updateDocumentMetadata = async (
-  documentId: string, 
-  data: Partial<BibliographicFields>, 
+  documentId: string,
+  data: Partial<BibliographicFields>,
   currentVersion: number
-): Promise<DocumentMetadata> => {
+): Promise<DocumentMetadataResponse> => {
+  // Backend uses `publicationYear`; the UI models it as `pubYear`.
+  const { pubYear, ...rest } = data;
+  const payload = {
+    ...rest,
+    ...(pubYear !== undefined ? { publicationYear: pubYear === '' ? null : Number(pubYear) } : {}),
+  };
+
   const response = await fetch(`/api/v1/documents/${documentId}`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
       'If-Match': String(currentVersion)
     },
-    body: JSON.stringify(data)
+    body: JSON.stringify(payload)
   });
 
   if (response.status === 409) {
@@ -66,8 +94,9 @@ export function useDocumentMetadata(documentId: string) {
   const mutation = useMutation({
     mutationFn: ({ data, currentVersion }: { data: Partial<BibliographicFields>; currentVersion: number }) =>
       updateDocumentMetadata(documentId, data, currentVersion),
-    onSuccess: (data) => {
-      queryClient.setQueryData(['documentMetadata', documentId], data);
+    onSuccess: () => {
+      // PUT returns only {id, version, status}; refetch the full document.
+      void queryClient.invalidateQueries({ queryKey: ['documentMetadata', documentId] });
       toast.success('Metadata updated successfully');
     },
     onError: (error) => {
@@ -76,15 +105,15 @@ export function useDocumentMetadata(documentId: string) {
   });
 
   return {
-    data: query.data?.fields,
+    data: query.data ? toFields(query.data) : undefined,
     document: query.data,
     isLoading: query.isLoading,
     error: query.error,
     mutate: (data: Partial<BibliographicFields>) => {
-      if (!query.data?.fields) return;
-      mutation.mutate({ 
-        data, 
-        currentVersion: query.data.fields.version 
+      if (!query.data) return;
+      mutation.mutate({
+        data,
+        currentVersion: query.data.version ?? 0
       });
     },
     isMutating: mutation.isPending

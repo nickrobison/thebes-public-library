@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,11 +13,17 @@ interface ImportDialogProps {
   onClose: () => void;
 }
 
+interface UploadResult {
+  importId: string;
+  status: string;
+  originalFilename: string;
+}
+
 export function ImportDialog({ onClose }: ImportDialogProps) {
   const [activeTab, setActiveTab] = useState("web-upload");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [uploadResult, setUploadResult] = useState<any>(null);
+  const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
@@ -41,12 +48,13 @@ export function ImportDialog({ onClose }: ImportDialogProps) {
         throw new Error("Upload failed");
       }
 
-      const result = await response.json();
+      const result = (await response.json()) as UploadResult;
       setUploadResult(result);
       setSelectedFile(null);
+      toast.success(`Queued ${result.originalFilename} for import`);
     } catch (error) {
       console.error("Upload error:", error);
-      alert("Upload failed. Please try again.");
+      toast.error("Upload failed. Please try again.");
     } finally {
       setIsUploading(false);
     }
@@ -100,7 +108,7 @@ export function ImportDialog({ onClose }: ImportDialogProps) {
                 <div className="p-3 bg-green-50 border border-green-200 rounded-md">
                   <div className="text-sm font-medium text-green-800">Upload Successful</div>
                   <div className="text-xs text-green-600 mt-1">
-                    Document ID: {uploadResult.documentId}
+                    Import job: {uploadResult.importId} ({uploadResult.status})
                   </div>
                 </div>
               )}

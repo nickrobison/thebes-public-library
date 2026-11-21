@@ -1,14 +1,18 @@
 package com.nickrobison.tpl.checksum;
 
+import jakarta.enterprise.context.ApplicationScoped;
+
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
+@ApplicationScoped
 public class Blake3Checksum {
 
-    // Pure Java BLAKE3-256 streaming implementation (no external crypto provider needed)
-    // Uses a simplified BLAKE3-like construction for demonstration; in production,
-    // use a verified BLAKE3 library or native binding.
+    // NOTE: despite the class name, this currently computes SHA-256, not BLAKE3.
+    // It is a stable streaming digest and is self-consistent for integrity checks,
+    // but the `blake3` field name in artifact metadata is misleading. Swap in a
+    // verified BLAKE3 implementation before treating the digest as BLAKE3 anywhere.
     public String calculate(InputStream data) throws Exception {
         java.security.MessageDigest sha256 = java.security.MessageDigest.getInstance("SHA-256");
         byte[] buffer = new byte[8192];

@@ -47,6 +47,17 @@ public class LibraryResourceIT {
 
     @Test
     public void testSortingByTitle() {
+        inTransaction(() -> {
+            Document zeta = new Document();
+            zeta.title = "Zeta Title";
+            zeta.createdAt = java.time.Instant.parse("2024-01-01T00:00:00Z");
+            zeta.persist();
+            Document alpha = new Document();
+            alpha.title = "Alpha Title";
+            alpha.createdAt = java.time.Instant.parse("2024-06-01T00:00:00Z");
+            alpha.persist();
+        });
+
         given()
             .param("limit", "10")
             .param("sortField", "title")
@@ -54,7 +65,10 @@ public class LibraryResourceIT {
             .when()
             .get("/api/v1/library")
             .then()
-            .statusCode(200);
+            .statusCode(200)
+            // Titles must be ordered by title, not by createdAt (regression guard).
+            .body("items.findAll { it.title == 'Alpha Title' }.size()", equalTo(1))
+            .body("items[0].title", equalTo("Alpha Title"));
     }
 
     @Test
@@ -66,19 +80,21 @@ public class LibraryResourceIT {
             .when()
             .get("/api/v1/library")
             .then()
-            .statusCode(200);
+            .statusCode(200)
+            .body("items.size()", greaterThanOrEqualTo(0));
     }
 
     @Test
     public void testSortingByPubYear() {
         given()
             .param("limit", "10")
-            .param("sortField", "pubYear")
+            .param("sortField", "publicationYear")
             .param("sortDir", "asc")
             .when()
             .get("/api/v1/library")
             .then()
-            .statusCode(200);
+            .statusCode(200)
+            .body("items.size()", greaterThanOrEqualTo(0));
     }
 
     @Test
@@ -90,7 +106,9 @@ public class LibraryResourceIT {
             .when()
             .get("/api/v1/library")
             .then()
-            .statusCode(200);
+            .statusCode(200)
+            // processingStatus must be sourced from the document column, not hardcoded.
+            .body("items.every { it.processingStatus != null }", equalTo(true));
     }
 
     @Test
@@ -102,7 +120,8 @@ public class LibraryResourceIT {
             .when()
             .get("/api/v1/library")
             .then()
-            .statusCode(200);
+            .statusCode(200)
+            .body("items.size()", greaterThanOrEqualTo(0));
     }
 
     @Test
@@ -196,5 +215,79 @@ public class LibraryResourceIT {
             .body("size()", greaterThanOrEqualTo(1));
 
         inTransaction(testJob::delete);
+    }
+
+    @Test
+    public void testAddArtifactJobIsVisibleInProcessingHistory() {
+        UUID testDocId = UUID.randomUUID();
+        Document testDoc = new Document();
+        testDoc.id = testDocId;
+        testDoc.title = "Add Artifact Doc";
+        inTransaction(testDoc::persist);
+
+        String jobId = given()
+                .contentType("application/json")
+                .body("{\"originalFilename\":\"paper.pdf\"}")
+                .when()
+                .post("/api/v1/documents/" + testDocId + "/artifacts")
+                .then()
+                .statusCode(200)
+                .extract().path("jobId");
+
+        // The created job must be discoverable through processing-history.
+        given()
+                .when()
+                .get("/api/v1/documents/" + testDocId + "/processing-history")
+                .then()
+                .statusCode(200)
+                .body("size()", equalTo(1))
+                .body("[0].id", equalTo(jobId));
+
+        inTransaction(() -> {
+            WorkflowJob.findById(UUID.fromString(jobId)).delete();
+            testDoc.delete();
+        });
+    }
+
+    @Test
+    public void testAddArtifactToMissingDocumentReturns404() {
+        given()
+                .contentType("application/json")
+                .body("{\"originalFilename\":\"paper.pdf\"}")
+                .when()
+                .post("/api/v1/documents/" + UUID.randomUUID() + "/artifacts")
+                .then()
+                .statusCode(404);
+    }
+
+    @Test
+    public void testDocumentDetailDoesNotLeakStorageInternals() {
+        UUID testDocId = UUID.randomUUID();
+        Document testDoc = new Document();
+        testDoc.id = testDocId;
+        testDoc.title = "Leak Check";
+        Artifact artifact = new Artifact();
+        artifact.id = UUID.randomUUID();
+        artifact.documentId = testDocId;
+        artifact.storagePath = "/secret/storage/path.pdf";
+        artifact.contentChecksum = "deadbeef";
+        inTransaction(() -> {
+            testDoc.persist();
+            artifact.persist();
+        });
+
+        given()
+                .when()
+                .get("/api/v1/documents/" + testDocId)
+                .then()
+                .statusCode(200)
+                .body("artifacts[0].storagePath", nullValue())
+                .body("artifacts[0].contentChecksum", nullValue())
+                .body("artifacts[0].id", equalTo(artifact.id.toString()));
+
+        inTransaction(() -> {
+            artifact.delete();
+            testDoc.delete();
+        });
     }
 }

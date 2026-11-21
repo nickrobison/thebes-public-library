@@ -1,48 +1,67 @@
 "use client";
 
-import React from 'react';
+import { X } from 'lucide-react';
 
 interface SelectionToolbarProps {
   selectedCount: number;
   onClear: () => void;
-  onAction: (action: string) => void;
 }
 
-export function SelectionToolbar({ selectedCount, onClear, onAction }: SelectionToolbarProps) {
+/**
+ * Bulk action bar. The actions are framework placeholders for Phase 4
+ * (collections, tags, export), so they render disabled rather than pretending
+ * to work. Only clearing the selection is functional today.
+ */
+export function SelectionToolbar({ selectedCount, onClear }: SelectionToolbarProps) {
+  if (selectedCount === 0) return null;
+
   return (
-    <div className="flex items-center space-x-2">
-      <div className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-medium">
+    <div
+      data-testid="selection-toolbar"
+      className="flex flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2"
+    >
+      <span
+        data-testid="selection-count"
+        className="rounded-full bg-slate-900 px-3 py-1 text-sm font-medium text-white"
+      >
         {selectedCount} selected
-      </div>
+      </span>
+
+      <span className="text-xs text-slate-400">Bulk actions arrive in Phase 4:</span>
+
       <button
-        onClick={() => onAction('view')}
-        className="px-3 py-1 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm"
+        type="button"
+        disabled
+        title="Available in Phase 4"
+        className="cursor-not-allowed rounded border border-slate-200 bg-slate-100 px-3 py-1 text-sm text-slate-400"
       >
-        View
+        Add to collection
       </button>
       <button
-        onClick={() => onAction('download')}
-        className="px-3 py-1 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm"
+        type="button"
+        disabled
+        title="Available in Phase 4"
+        className="cursor-not-allowed rounded border border-slate-200 bg-slate-100 px-3 py-1 text-sm text-slate-400"
       >
-        Download
+        Tag
       </button>
       <button
-        onClick={() => onAction('metadata')}
-        className="px-3 py-1 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm"
+        type="button"
+        disabled
+        title="Available in Phase 4"
+        className="cursor-not-allowed rounded border border-slate-200 bg-slate-100 px-3 py-1 text-sm text-slate-400"
       >
-        Metadata
+        Export
       </button>
+
       <button
-        onClick={() => onAction('processing')}
-        className="px-3 py-1 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm"
-      >
-        Processing History
-      </button>
-      <button
+        type="button"
+        aria-label="Clear selection"
+        data-testid="selection-clear"
         onClick={onClear}
-        className="px-3 py-1 text-red-600 hover:text-red-700 transition-colors text-sm"
+        className="ml-auto rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-900"
       >
-        Clear Selection
+        <X className="h-4 w-4" />
       </button>
     </div>
   );

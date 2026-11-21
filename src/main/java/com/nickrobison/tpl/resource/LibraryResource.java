@@ -3,20 +3,53 @@ package com.nickrobison.tpl.resource;
 import com.nickrobison.tpl.model.Document;
 import com.nickrobison.tpl.model.Artifact;
 import com.nickrobison.tpl.model.ArtifactState;
+import com.nickrobison.tpl.storage.Storage;
 import com.nickrobison.tpl.workflow.WorkflowJob;
 import com.nickrobison.tpl.workflow.WorkflowType;
 import com.nickrobison.tpl.workflow.WorkflowStatus;
+import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.core.StreamingOutput;
 import jakarta.transaction.Transactional;
 
+import java.io.InputStream;
+import java.time.Instant;
 import java.util.*;
 
 @Path("/api/v1")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
 public class LibraryResource {
+
+    private final Storage storage;
+
+    public LibraryResource(Storage storage) {
+        this.storage = storage;
+    }
+
+    /** Null-safe string ordering; nulls sort last regardless of direction flip. */
+    private static int compareStrings(String a, String b) {
+        if (a == null && b == null) return 0;
+        if (a == null) return 1;
+        if (b == null) return -1;
+        return a.compareTo(b);
+    }
+
+    private static int compareInts(Integer a, Integer b) {
+        if (a == null && b == null) return 0;
+        if (a == null) return 1;
+        if (b == null) return -1;
+        return Integer.compare(a, b);
+    }
+
+    private static int compareInstants(Instant a, Instant b) {
+        if (a == null && b == null) return 0;
+        if (a == null) return 1;
+        if (b == null) return -1;
+        return a.compareTo(b);
+    }
 
     @GET
     @Path("/library")
@@ -25,28 +58,25 @@ public class LibraryResource {
             @QueryParam("sortField") @DefaultValue("createdAt") String sortField,
             @QueryParam("sortDir") @DefaultValue("asc") String sortDir,
             @QueryParam("cursor") String cursor) {
-        String order = sortDir.equalsIgnoreCase("desc") ? "DESC" : "ASC";
-        Set<String> allowed = Set.of("title", "authors", "pubYear", "journal", "volume", "issue", "pages", "doi", "createdAt");
+        Set<String> allowed = Set.of("title", "authors", "publicationYear", "pubYear",
+                "processingStatus", "createdAt");
         String field = allowed.contains(sortField) ? sortField : "createdAt";
         List<Document> allDocs = Document.listAll();
-        // For server-side pagination/sorting with stable cursor semantics,
-        // retrieve full sorted list and paginate in memory (suitable for ~10k corpus in Phase 3)
-        // Sort by the requested field (manual sort for stability)
-        // Sort by the requested field (manual sort for stability)
+        // Retrieve the full sorted list and paginate in memory.
+        // Sufficient for the ~10k document corpus targeted in Phase 3; revisit with
+        // keyset pagination if the corpus outgrows a single-page sort.
         Comparator<Document> comp = (a, b) -> {
-            int cmp = 0;
-            switch (field) {
-                case "authors": cmp = a.authors != null && b.authors != null ? a.authors.compareTo(b.authors) : 0; break;
-                case "pubYear": cmp = Integer.compare(a.pubYear != null ? a.pubYear : 0, b.pubYear != null ? b.pubYear : 0); break;
-                case "volume": cmp = a.volume != null && b.volume != null ? a.volume.compareTo(b.volume) : 0; break;
-                case "issue": cmp = a.issue != null && b.issue != null ? a.issue.compareTo(b.issue) : 0; break;
-                case "pages": cmp = a.pages != null && b.pages != null ? a.pages.compareTo(b.pages) : 0; break;
-                case "doi": cmp = a.doi != null && b.doi != null ? a.doi.compareTo(b.doi) : 0; break;
-                default: cmp = a.createdAt != null && b.createdAt != null ? a.createdAt.compareTo(b.createdAt) : 0; break;
-            }
+            int cmp = switch (field) {
+                case "title" -> compareStrings(a.title, b.title);
+                case "authors" -> compareStrings(a.authors, b.authors);
+                case "publicationYear", "pubYear" -> compareInts(a.pubYear, b.pubYear);
+                case "processingStatus" -> compareStrings(a.processingStatus, b.processingStatus);
+                default -> compareInstants(a.createdAt, b.createdAt);
+            };
             return sortDir.equalsIgnoreCase("desc") ? -cmp : cmp;
         };
-        allDocs.sort(comp);
+        // Tie-break on id so equal sort keys yield a stable, repeatable cursor order.
+        allDocs.sort(comp.thenComparing(d -> d.id.toString()));
         int fromIndex = cursor != null && !cursor.isEmpty() ? allDocs.indexOf(Document.findById(UUID.fromString(cursor))) + 1 : 0;
         if (fromIndex < 0 || fromIndex >= allDocs.size()) fromIndex = 0;
         int toIndex = Math.min(fromIndex + limit, allDocs.size());
@@ -58,7 +88,7 @@ public class LibraryResource {
             item.put("title", d.title);
             item.put("authors", d.authors);
             item.put("publicationYear", d.pubYear);
-            item.put("processingStatus", "PENDING"); // derived from workflow, not document column; placeholder for Phase 3
+            item.put("processingStatus", d.processingStatus);
             result.add(item);
         }
         Map<String, Object> resp = new HashMap<>();
@@ -88,7 +118,7 @@ public class LibraryResource {
 
         Artifact preferred = Artifact.find("documentId = ?1 AND isPreferred = true", docId).firstResult();
         resp.put("preferredArtifactId", preferred != null ? preferred.id.toString() : null);
-        resp.put("artifacts", Artifact.list("documentId = ?1", docId));
+        resp.put("artifacts", toArtifactDtos(Artifact.list("documentId = ?1", docId)));
         return Response.ok(resp).build();
     }
 
@@ -133,7 +163,11 @@ public class LibraryResource {
     @GET
     @Path("/documents/{id}/artifacts")
     public Response getArtifacts(@PathParam("id") UUID docId) {
-        List<Artifact> artifacts = Artifact.list("documentId = ?1", docId);
+        return Response.ok(toArtifactDtos(Artifact.list("documentId = ?1", docId))).build();
+    }
+
+    /** Maps artifacts to the public DTO shape, keeping storage paths and checksums server-side. */
+    private static List<Map<String, Object>> toArtifactDtos(List<Artifact> artifacts) {
         List<Map<String, Object>> result = new ArrayList<>();
         for (Artifact a : artifacts) {
             Map<String, Object> item = new HashMap<>();
@@ -145,18 +179,30 @@ public class LibraryResource {
             item.put("createdAt", a.createdAt);
             result.add(item);
         }
-        return Response.ok(result).build();
+        return result;
     }
 
     @POST
     @Path("/documents/{id}/artifacts")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    @Transactional
     public Response addArtifact(@PathParam("id") UUID docId, Map<String, Object> payload) {
+        Document document = Document.findById(docId);
+        if (document == null) {
+            return Response.status(Response.Status.NOT_FOUND)
+                    .entity(Map.of("error", "Document not found")).build();
+        }
+        String originalFilename = payload.get("originalFilename") instanceof String name
+                ? name
+                : "artifact-" + UUID.randomUUID();
         WorkflowJob job = new WorkflowJob();
         job.id = UUID.randomUUID();
         job.type = WorkflowType.IMPORT_SINGLE;
         job.status = WorkflowStatus.PENDING;
-        job.payload = payload.containsKey("originalFilename") ? (String) payload.get("originalFilename") : "artifact-" + UUID.randomUUID();
-        job.submittedAt = java.time.Instant.now();
+        // Store the documentId inside the JSON payload so processing-history can find this job.
+        job.payload = "{\"documentId\":\"" + docId + "\",\"originalFilename\":\"" + originalFilename + "\"}";
+        job.submittedAt = Instant.now();
         job.persist();
         Map<String, Object> resp = new HashMap<>();
         resp.put("jobId", job.id.toString());
@@ -185,5 +231,43 @@ public class LibraryResource {
             result.add(item);
         }
         return Response.ok(result).build();
+    }
+
+    /**
+     * Streams artifact bytes for the in-browser reader.
+     * Only AVAILABLE artifacts are readable; storage paths and checksums stay server-side.
+     */
+    @GET
+    @Path("/artifacts/{artifactId}/content")
+    @Produces("application/pdf")
+    public Response getArtifactContent(@PathParam("artifactId") UUID artifactId) {
+        Artifact artifact = Artifact.findById(artifactId);
+        if (artifact == null) {
+            return Response.status(Response.Status.NOT_FOUND)
+                    .entity(Map.of("error", "Artifact not found")).build();
+        }
+        if (artifact.status != ArtifactState.AVAILABLE) {
+            return Response.status(Response.Status.CONFLICT)
+                    .entity(Map.of("error", "Artifact not available: " + artifact.status)).build();
+        }
+
+        InputStream data;
+        try {
+            data = storage.load(artifactId);
+        } catch (RuntimeException e) {
+            return Response.status(Response.Status.NOT_FOUND)
+                    .entity(Map.of("error", "Artifact bytes missing from storage")).build();
+        }
+
+        StreamingOutput stream = output -> {
+            try (InputStream in = data) {
+                in.transferTo(output);
+            }
+        };
+        return Response.ok(stream)
+                .type("application/pdf")
+                .header("Content-Disposition",
+                        "inline; filename=\"" + artifact.originalFilename + "\"")
+                .build();
     }
 }
