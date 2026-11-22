@@ -1,17 +1,23 @@
-import { createRootRoute, createRoute, createRouter } from '@tanstack/react-router'
+import { createRootRoute, createRoute, createRouter, redirect } from '@tanstack/react-router'
 import Root from './__root'
 import LibraryRoute, { validateLibrarySearch } from './library'
 import LibraryDocumentRoute from './library.$documentId'
 
 const rootRoute = createRootRoute({
   component: Root,
+  errorComponent: ({ error }) => (
+    <div className="p-6 text-red-700">
+      <h1 className="text-lg font-semibold">Something went wrong</h1>
+      <pre className="mt-2 whitespace-pre-wrap text-sm">{String(error)}</pre>
+    </div>
+  ),
 })
 
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
   beforeLoad: () => {
-    throw { redirect: { to: '/library' } }
+    throw redirect({ to: '/library' })
   },
 })
 
