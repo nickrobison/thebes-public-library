@@ -17,7 +17,10 @@ const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
   beforeLoad: () => {
-    throw redirect({ to: '/library' })
+    throw redirect({
+      to: '/library',
+      search: { view: 'table', sortField: 'title', sortDir: 'asc' },
+    })
   },
 })
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
@@ -17,14 +18,9 @@ interface Artifact {
 }
 
 interface UploadResponse {
-  id: string;
-  filename: string;
-  originalFilename: string;
-  fileSize: number;
-  mimeType: string;
+  jobId: string;
   status: string;
-  createdAt: string;
-  updatedAt: string;
+  documentId: string;
 }
 
 interface ImportStatus {
@@ -91,14 +87,15 @@ export function useArtifacts(documentId: string) {
     artifacts: query.data || [],
     isLoading: query.isLoading,
     error: query.error,
-    uploadArtifact: (file: File) => mutation.mutate({ file }),
+    uploadArtifact: (file: File) => mutation.mutateAsync({ file }),
     isUploading: mutation.isPending,
     refetch: query.refetch,
   };
 }
 
 export function useImportPolling(importId: string, onComplete?: (status: ImportStatus) => void) {
-  return useQuery({
+  const completedRef = useRef<string | null>(null);
+  const query = useQuery({
     queryKey: ['importStatus', importId],
     queryFn: () => fetchImportStatus(importId),
     enabled: !!importId,
@@ -111,4 +108,15 @@ export function useImportPolling(importId: string, onComplete?: (status: ImportS
       return 2000;
     },
   });
+
+  useEffect(() => {
+    const data = query.data;
+    if (!data || !onComplete) return;
+    if ((data.status === 'COMPLETED' || data.status === 'FAILED') && completedRef.current !== importId) {
+      completedRef.current = importId;
+      onComplete(data);
+    }
+  }, [importId, onComplete, query.data]);
+
+  return query;
 }
