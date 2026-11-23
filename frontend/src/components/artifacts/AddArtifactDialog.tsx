@@ -7,7 +7,7 @@ import { useImportPolling } from '../../hooks/useArtifacts';
 interface AddArtifactDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onUpload: (file: File) => void;
+  onUpload: (file: File) => Promise<{ jobId: string }>;
   documentId: string;
 }
 
@@ -43,16 +43,13 @@ export function AddArtifactDialog({ isOpen, onClose, onUpload, documentId }: Add
       toast.error('Please select a file');
       return;
     }
-    
+
     setIsUploading(true);
     try {
-      onUpload(selectedFile);
-      // The upload mutation in useArtifacts hook will return an UploadResponse with an id
-      // We need to capture that ID for polling
-      // For now, we'll simulate it - in real implementation, we'd get the ID from the mutation response
-      setUploadId('temp-upload-id');
+      const result = await onUpload(selectedFile);
+      setUploadId(result.jobId);
     } catch (error) {
-      toast.error('Failed to start upload');
+      toast.error(error instanceof Error ? error.message : 'Failed to start upload');
       setIsUploading(false);
     }
   };

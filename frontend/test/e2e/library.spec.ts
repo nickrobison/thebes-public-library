@@ -116,6 +116,28 @@ test.describe('Library', () => {
     await expect(page.getByText('Single File Upload')).toBeHidden()
   })
 
+  test('web upload queues a PDF through the import API', async ({ page }) => {
+    test.skip(!existsSync(samplePdf), 'sample.pdf fixture missing')
+
+    await page.getByTestId('open-import').click()
+    await expect(page.getByRole('dialog')).toBeVisible()
+
+    await page.getByLabel('Select PDF file').setInputFiles(samplePdf)
+    await expect(page.getByText('Selected: sample.pdf')).toBeVisible()
+
+    const uploadResponsePromise = page.waitForResponse(
+      (response) =>
+        response.url().includes('/api/v1/upload') &&
+        response.request().method() === 'POST',
+    )
+    await page.getByRole('button', { name: 'Upload and Process' }).click()
+    const uploadResponse = await uploadResponsePromise
+    expect(uploadResponse.ok()).toBeTruthy()
+
+    await expect(page.getByText('Upload Successful')).toBeVisible()
+    await expect(page.getByText(/Import job:/)).toBeVisible()
+  })
+
   test('sort dropdown is interactive', async ({ page }) => {
     await page.getByTestId('sort-select').click()
     await page.getByRole('option', { name: 'Publication Year' }).click()

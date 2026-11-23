@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,6 +21,7 @@ interface UploadResult {
 }
 
 export function ImportDialog({ onClose }: ImportDialogProps) {
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("web-upload");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -52,6 +54,7 @@ export function ImportDialog({ onClose }: ImportDialogProps) {
       setUploadResult(result);
       setSelectedFile(null);
       toast.success(`Queued ${result.originalFilename} for import`);
+      await queryClient.invalidateQueries({ queryKey: ["library"] });
     } catch (error) {
       console.error("Upload error:", error);
       toast.error("Upload failed. Please try again.");
