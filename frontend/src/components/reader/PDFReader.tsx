@@ -215,7 +215,10 @@ export function PDFReader({ documentId, artifactId, downloadFilename }: PDFReade
         </svg>
         <p className="text-gray-600 dark:text-gray-400">{loadError}</p>
         <button
-          onClick={reset}
+          onClick={() => {
+            reset();
+            setLoadError(null);
+          }}
           className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
         >
           Retry

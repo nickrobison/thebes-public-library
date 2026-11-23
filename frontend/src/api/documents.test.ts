@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { server } from '../../test/setup'
 import { http, HttpResponse } from 'msw'
-import { getDocument, getDocumentArtifacts, updateDocument } from './documents'
-import type { DocumentDetail, Artifact } from '../types/document'
+import { getDocument, getDocumentArtifacts, getProcessingHistory, updateDocument, addArtifact } from './documents'
+import type { DocumentDetail, Artifact, ProcessingHistoryItem } from '../types/document'
 
 describe('api/documents', () => {
   beforeEach(() => {
@@ -75,5 +75,63 @@ describe('api/documents', () => {
     server.use(http.put('/api/v1/documents/:id', () => new HttpResponse('conflict', { status: 409 })))
 
     await expect(updateDocument('doc-1', { title: 'New' }, 1)).rejects.toThrow()
+  })
+
+  it('throws with status detail when fetching artifacts fails', async () => {
+    server.use(http.get('/api/v1/documents/:id/artifacts', () => new HttpResponse('nope', { status: 500 })))
+
+    await expect(getDocumentArtifacts('doc-1')).rejects.toThrow('Request failed (500)')
+  })
+
+  it('fetches the processing history', async () => {
+    const history: ProcessingHistoryItem[] = [
+      {
+        id: 'job-1',
+        type: 'IMPORT_SINGLE',
+        status: 'COMPLETED',
+        currentStage: 'DONE',
+        retryCount: 0,
+        submittedAt: '2026-01-01T00:00:00Z',
+        completedAt: '2026-01-01T00:00:05Z',
+        failureReason: null,
+        payload: '{}',
+        stages: [],
+      },
+    ]
+
+    server.use(http.get('/api/v1/documents/:id/processing-history', () => HttpResponse.json(history)))
+
+    const result = await getProcessingHistory('doc-1')
+    expect(result).toHaveLength(1)
+    expect(result[0].id).toBe('job-1')
+  })
+
+  it('throws when fetching the processing history fails', async () => {
+    server.use(
+      http.get('/api/v1/documents/:id/processing-history', () => new HttpResponse('nope', { status: 404 })),
+    )
+
+    await expect(getProcessingHistory('doc-1')).rejects.toThrow('Request failed (404)')
+  })
+
+  it('adds an artifact and returns the job id', async () => {
+    let seenBody: unknown = null
+    server.use(
+      http.post('/api/v1/documents/:id/artifacts', async ({ request }) => {
+        seenBody = await request.json()
+        return HttpResponse.json({ jobId: 'job-42', status: 'PENDING', documentId: 'doc-1' })
+      }),
+    )
+
+    const result = await addArtifact('doc-1', 'paper.pdf')
+
+    expect(seenBody).toEqual({ originalFilename: 'paper.pdf' })
+    expect(result.jobId).toBe('job-42')
+  })
+
+  it('throws when adding an artifact fails', async () => {
+    server.use(http.post('/api/v1/documents/:id/artifacts', () => new HttpResponse('nope', { status: 500 })))
+
+    await expect(addArtifact('doc-1', 'paper.pdf')).rejects.toThrow('Request failed (500)')
   })
 })

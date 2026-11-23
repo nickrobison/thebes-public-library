@@ -58,4 +58,33 @@ describe('MetadataEditorModal', () => {
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
     expect(onSave).not.toHaveBeenCalled()
   })
+
+  it('closes without saving after confirming the unsaved-changes prompt', () => {
+    const onClose = vi.fn()
+    const onSave = vi.fn()
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    render(<MetadataEditorModal isOpen onClose={onClose} initialData={initialData} onSave={onSave} />)
+
+    fireEvent.change(screen.getByDisplayValue('Old Title'), { target: { value: 'New Title' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(confirmSpy).toHaveBeenCalledWith('You have unsaved changes. Are you sure you want to close?')
+    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(onSave).not.toHaveBeenCalled()
+    confirmSpy.mockRestore()
+  })
+
+  it('stays open when the unsaved-changes prompt is dismissed', () => {
+    const onClose = vi.fn()
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    render(<MetadataEditorModal isOpen onClose={onClose} initialData={initialData} onSave={vi.fn()} />)
+
+    fireEvent.change(screen.getByDisplayValue('Old Title'), { target: { value: 'New Title' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(confirmSpy).toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByText('Edit Bibliographic Metadata')).toBeInTheDocument()
+    confirmSpy.mockRestore()
+  })
 })

@@ -3,11 +3,13 @@ import { render, screen, fireEvent } from '../../../test/utils/render'
 import { LibraryTable } from './LibraryTable'
 import type { LibraryItem } from '../../types/library'
 
+const routerMocks = vi.hoisted(() => ({ navigate: vi.fn() }))
+
 vi.mock('@tanstack/react-router', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@tanstack/react-router')>()
   return {
     ...actual,
-    useNavigate: () => vi.fn(),
+    useNavigate: () => routerMocks.navigate,
   }
 })
 
@@ -93,5 +95,104 @@ describe('LibraryTable', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Sort by Authors' }))
     expect(onSortChange).toHaveBeenCalledWith('authors', 'asc')
+  })
+
+  it('navigates to the document when a row is clicked', () => {
+    routerMocks.navigate.mockClear()
+    render(
+      <LibraryTable
+        items={items}
+        sortField="title"
+        sortDir="asc"
+        onSortChange={() => {}}
+        selectedIds={new Set()}
+        onToggleSelect={() => {}}
+        onToggleSelectAll={() => {}}
+      />,
+    )
+
+    fireEvent.click(screen.getByTestId('cell-title'))
+
+    expect(routerMocks.navigate).toHaveBeenCalledWith({
+      to: '/library/$documentId',
+      params: { documentId: 'doc-1' },
+    })
+  })
+
+  it('toggles the sort direction when the active column is clicked again', () => {
+    const onSortChange = vi.fn()
+    render(
+      <LibraryTable
+        items={items}
+        sortField="title"
+        sortDir="asc"
+        onSortChange={onSortChange}
+        selectedIds={new Set()}
+        onToggleSelect={() => {}}
+        onToggleSelectAll={() => {}}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sort by Title' }))
+
+    expect(onSortChange).toHaveBeenCalledWith('title', 'desc')
+    expect(screen.getByRole('button', { name: 'Sort by Title' })).toHaveAttribute(
+      'aria-sort',
+      'ascending',
+    )
+  })
+
+  it('shows the descending indicator when sorted descending', () => {
+    render(
+      <LibraryTable
+        items={items}
+        sortField="title"
+        sortDir="desc"
+        onSortChange={() => {}}
+        selectedIds={new Set()}
+        onToggleSelect={() => {}}
+        onToggleSelectAll={() => {}}
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: 'Sort by Title' })).toHaveAttribute(
+      'aria-sort',
+      'descending',
+    )
+  })
+
+  it('flips back to ascending when the active column is already descending', () => {
+    const onSortChange = vi.fn()
+    render(
+      <LibraryTable
+        items={items}
+        sortField="title"
+        sortDir="desc"
+        onSortChange={onSortChange}
+        selectedIds={new Set()}
+        onToggleSelect={() => {}}
+        onToggleSelectAll={() => {}}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sort by Title' }))
+
+    expect(onSortChange).toHaveBeenCalledWith('title', 'asc')
+  })
+
+  it('renders em dashes for missing authors and publication year', () => {
+    render(
+      <LibraryTable
+        items={[{ ...items[0], authors: '', publicationYear: null }]}
+        sortField="title"
+        sortDir="asc"
+        onSortChange={() => {}}
+        selectedIds={new Set()}
+        onToggleSelect={() => {}}
+        onToggleSelectAll={() => {}}
+      />,
+    )
+
+    expect(screen.getAllByText('—')).toHaveLength(2)
   })
 })

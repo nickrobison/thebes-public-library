@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 import { usePDFReader } from './usePDFReader'
 
@@ -74,5 +74,69 @@ describe('usePDFReader', () => {
     act(() => result.current.setPageNumber(3))
     act(() => result.current.reset())
     expect(result.current.pageNumber).toBe(1)
+  })
+
+  it('does not advance past the last page', () => {
+    const { result } = renderHook(() => usePDFReader('doc-1', 'art-1'))
+    act(() => result.current.setNumPages(3))
+
+    act(() => result.current.nextPage())
+    expect(result.current.pageNumber).toBe(2)
+
+    act(() => result.current.nextPage())
+    expect(result.current.pageNumber).toBe(3)
+
+    act(() => result.current.nextPage())
+    expect(result.current.pageNumber).toBe(3)
+  })
+
+  it('clamps the page count to zero', () => {
+    const { result } = renderHook(() => usePDFReader('doc-1', 'art-1'))
+    act(() => result.current.setNumPages(-5))
+    expect(result.current.numPages).toBe(0)
+  })
+
+  it('fitWidth ignores invalid dimensions', () => {
+    const { result } = renderHook(() => usePDFReader('doc-1', 'art-1'))
+
+    act(() => result.current.fitWidth(0, 100))
+    expect(result.current.scale).toBe(1)
+
+    act(() => result.current.fitWidth(100, 0))
+    expect(result.current.scale).toBe(1)
+
+    act(() => result.current.fitWidth(Number.NaN, 100))
+    expect(result.current.scale).toBe(1)
+  })
+
+  it('hydrates from and persists to localStorage', () => {
+    localStorage.setItem('tpl:reader:doc-1:art-1:v1', JSON.stringify({ pageNumber: 4, scale: 2 }))
+
+    const { result } = renderHook(() => usePDFReader('doc-1', 'art-1'))
+    expect(result.current.pageNumber).toBe(4)
+    expect(result.current.scale).toBe(2)
+
+    act(() => result.current.setPageNumber(6))
+    expect(localStorage.getItem('tpl:reader:doc-1:art-1:v1')).toContain('"pageNumber":6')
+  })
+
+  it('survives corrupt localStorage payloads', () => {
+    localStorage.setItem('tpl:reader:doc-1:art-1:v1', 'not-json{')
+
+    const { result } = renderHook(() => usePDFReader('doc-1', 'art-1'))
+    expect(result.current.pageNumber).toBe(1)
+    expect(result.current.scale).toBe(1)
+  })
+
+  it('keeps working when persisting to localStorage throws', () => {
+    const setItemSpy = vi.spyOn(window.localStorage, 'setItem').mockImplementation(() => {
+      throw new Error('quota exceeded')
+    })
+
+    const { result } = renderHook(() => usePDFReader('doc-1', 'art-1'))
+    act(() => result.current.setPageNumber(3))
+
+    expect(result.current.pageNumber).toBe(3)
+    setItemSpy.mockRestore()
   })
 })

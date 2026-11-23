@@ -56,4 +56,19 @@ describe('DocumentActions', () => {
     fireEvent.mouseDown(document.body)
     expect(screen.queryByTestId('document-actions-menu')).not.toBeInTheDocument()
   })
+
+  it('runs actions through optional handlers when none are provided', () => {
+    render(<DocumentActions />)
+
+    fireEvent.click(screen.getByTestId('document-actions-trigger'))
+    fireEvent.click(screen.getByTestId('action-edit-metadata'))
+    expect(screen.queryByTestId('document-actions-menu')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId('document-actions-trigger'))
+    fireEvent.click(screen.getByTestId('action-view-processing'))
+    expect(screen.queryByTestId('document-actions-menu')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId('document-actions-trigger'))
+    fireEvent.click(screen.getByTestId('action-add-artifact'))
+  })
 })

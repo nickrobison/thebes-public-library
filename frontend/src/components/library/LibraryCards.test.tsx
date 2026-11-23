@@ -42,4 +42,17 @@ describe('LibraryCards', () => {
     )
     expect(screen.getByTestId('card-select')).toBeChecked()
   })
+
+  it('falls back to an unknown author and hides missing years', () => {
+    renderWithRouter(
+      <LibraryCards
+        items={[{ ...items[0], authors: '', publicationYear: null }]}
+        selectedIds={new Set()}
+        onToggleSelect={() => {}}
+      />,
+    )
+
+    expect(screen.getByText('Unknown author')).toBeInTheDocument()
+    expect(screen.queryByText('800')).not.toBeInTheDocument()
+  })
 })
