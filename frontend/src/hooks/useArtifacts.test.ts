@@ -50,6 +50,33 @@ describe('useArtifacts', () => {
     expect(uploadResult.jobId).toBe('job-42')
     expect(global.fetch).toHaveBeenCalled()
   })
+
+  it('surfaces upload failures from the mutation', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      text: async () => 'upload rejected',
+    }) as unknown as typeof fetch
+
+    const { result } = renderHook(() => useArtifacts(testDocId))
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    await expect(result.current.uploadArtifact(testFile)).rejects.toThrow('upload rejected')
+    expect(result.current.isUploading).toBe(false)
+  })
+
+  it('falls back to a default message when the upload error body is empty', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      text: async () => '',
+    }) as unknown as typeof fetch
+
+    const { result } = renderHook(() => useArtifacts(testDocId))
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    await expect(result.current.uploadArtifact(testFile)).rejects.toThrow('Failed to upload artifact')
+  })
 })
 
 describe('useImportPolling', () => {
@@ -79,5 +106,17 @@ describe('useImportPolling', () => {
     expect(onComplete).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'COMPLETED' }),
     )
+  })
+
+  it('surfaces import status fetch failures', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      text: async () => 'nope',
+    }) as unknown as typeof fetch
+
+    const onComplete = vi.fn()
+    const { result } = renderHook(() => useImportPolling('job-42', onComplete))
+
+    await waitFor(() => expect(result.current.error).toBeDefined())
   })
 })

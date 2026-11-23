@@ -13,6 +13,11 @@ describe('InlineEdit', () => {
     expect(screen.getByText('Enter title')).toBeInTheDocument()
   })
 
+  it('renders the default hint when no placeholder is given', () => {
+    render(<InlineEdit field="title" value="" onSave={() => {}} />)
+    expect(screen.getByText('Click to edit')).toBeInTheDocument()
+  })
+
   it('enters edit mode on double click and saves on blur when changed', () => {
     const onSave = vi.fn()
     render(<InlineEdit field="title" value="Old" onSave={onSave} />)

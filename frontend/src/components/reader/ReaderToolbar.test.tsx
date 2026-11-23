@@ -123,4 +123,30 @@ describe('ReaderToolbar', () => {
     expect(download).toHaveAttribute('href', '/api/v1/artifacts/art-9/content')
     expect(download).toHaveAttribute('download', 'paper.pdf')
   })
+
+  it('highlights only the active fit mode', () => {
+    renderToolbar({ viewMode: 'page' })
+
+    expect(screen.getByTestId('reader-fit-page')).toHaveClass('bg-blue-100')
+    expect(screen.getByTestId('reader-fit-width')).not.toHaveClass('bg-blue-100')
+  })
+
+  it('highlights the width mode button in width view', () => {
+    renderToolbar({ viewMode: 'width' })
+
+    expect(screen.getByTestId('reader-fit-width')).toHaveClass('bg-blue-100')
+    expect(screen.getByTestId('reader-fit-page')).not.toHaveClass('bg-blue-100')
+  })
+
+  it('ignores empty page input changes and empty enter presses', () => {
+    const onPageChange = vi.fn()
+    renderToolbar({ onPageChange })
+
+    const input = screen.getByTestId('reader-page-input')
+
+    fireEvent.change(input, { target: { value: '' } })
+    fireEvent.keyDown(input, { key: 'Enter', target: { value: '' } })
+
+    expect(onPageChange).not.toHaveBeenCalled()
+  })
 })

@@ -128,6 +128,7 @@ export function ArtifactsPanel({ documentId }: ArtifactsPanelProps) {
                     type="checkbox"
                     checked={isSelected(artifact.id)}
                     onChange={() => toggleSelect(artifact.id)}
+                    onClick={(event) => event.stopPropagation()}
                     className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                   />
                   <div className="flex-1">
@@ -176,6 +177,7 @@ export function ArtifactsPanel({ documentId }: ArtifactsPanelProps) {
                     type="checkbox"
                     checked={isSelected(artifact.id)}
                     onChange={() => toggleSelect(artifact.id)}
+                    onClick={(event) => event.stopPropagation()}
                     className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                   />
                   <div className="flex-1">
